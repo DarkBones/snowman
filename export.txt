@@ -36,14 +36,21 @@
 
 
 ```nix
+# hosts/vm-snowman/users.nix
+
+{ ... }: { imports = [ ../../users/bas.nix ]; }
+```
+
+
+```nix
 # hosts/vm-snowman/configuration.nix
 
 { config, home-manager, ... }: {
   imports = [
     ../../modules/base.nix
     ../../modules/hardware/qemu.nix
-    ../../users
     ./hardware-configuration.nix
+    ./users.nix
     home-manager.nixosModules.home-manager
   ];
 
@@ -59,20 +66,54 @@
 
 
 ```nix
+# home/roles/dev.nix
+
+{ pkgs, lib, config, ... }:
+let cfg = config.roles.dev;
+in {
+  options.roles.dev.enable = lib.mkEnableOption "Dev role";
+  config = lib.mkIf cfg.enable {
+    programs.home-manager.enable = true;
+    home.packages = with pkgs; [ git neovim ripgrep tree ];
+    programs.direnv.enable = true;
+    programs.direnv.nix-direnv.enable = true;
+  };
+}
+```
+
+
+```nix
+# home/roles/default.nix
+
+{ ... }:
+let
+  entries = builtins.readDir ./.;
+  nixFiles = builtins.filter (n:
+    entries.${n} == "regular" && builtins.match "^[^_].*\\.nix$" n != null && n
+    != "default.nix") (builtins.attrNames entries);
+in { imports = map (n: ./. + "/${n}") nixFiles; }
+```
+
+
+```nix
 # home/bas.nix
 
-{ pkgs, ... }: {
+{ ... }: {
+  imports = [ ./default.nix ];
+
   home.username = "bas";
   home.homeDirectory = "/home/bas";
   home.stateVersion = "25.05";
 
-  programs.home-manager.enable = true;
-
-  home.packages = with pkgs; [ git neovim ripgrep tree ];
-
-  programs.direnv.enable = true;
-  programs.direnv.nix-direnv.enable = true;
+  roles = { dev.enable = true; };
 }
+```
+
+
+```nix
+# home/default.nix
+
+{ ... }: { imports = [ ./roles ]; }
 ```
 
 
@@ -106,17 +147,6 @@
 
 
 ```nix
-# modules/hardware/qemu.nix
-
-{ modulesPath, ... }: {
-  imports = [ (modulesPath + "/profiles/qemu-guest.nix") ];
-  services.qemuGuest.enable = true;
-  boot.initrd.systemd.enable = true;
-}
-```
-
-
-```nix
 # modules/hardware/server.nix
 
 { ... }: {
@@ -131,6 +161,16 @@
   systemd.network.wait-online.enable = false;
   networking.networkmanager.enable = false;
   systemd.network.enable = true;
+}
+```
+
+
+```nix
+# modules/hardware/qemu.nix
+
+{ ... }: {
+  services.qemuGuest.enable = true;
+  boot.initrd.systemd.enable = true;
 }
 ```
 
@@ -176,17 +216,19 @@
 ```nix
 # modules/base.nix
 
-{ pkgs, ... }: {
+{ ... }: {
   imports = [ ./security/ssh.nix ];
 
   home-manager.useGlobalPkgs = true;
   home-manager.useUserPackages = true;
 
   time.timeZone = "Europe/Berlin";
-  nix.settings.experimental-features = [ "nix-command" "flakes" ];
   nixpkgs.config.allowUnfree = true;
 
+  users.mutableUsers = false;
+
   nix.settings = {
+    experimental-features = [ "nix-command" "flakes" ];
     substituters =
       [ "https://cache.nixos.org" "https://nix-community.cachix.org" ];
     trusted-public-keys = [
@@ -194,8 +236,6 @@
       "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
     ];
   };
-
-  environment.systemPackages = with pkgs; [ alejandra deadnix ];
 }
 ```
 
@@ -274,20 +314,6 @@
 
   home-manager.users.bas = import ../home/bas.nix;
 }
-```
-
-
-```nix
-# users/default.nix
-
-{ ... }:
-let
-  entries = builtins.readDir ./.;
-
-  nixFiles = builtins.filter (name:
-    entries.${name} == "regular" && builtins.match "^[^_].*\\.nix$" name != null
-    && name != "default.nix") (builtins.attrNames entries);
-in { imports = map (name: ./. + "/${name}") nixFiles; }
 ```
 
 

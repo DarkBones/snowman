@@ -2,8 +2,8 @@
   imports = [
     ../../modules/base.nix
     ../../modules/hardware/qemu.nix
-    ../../users
     ./hardware-configuration.nix
+    ./users.nix
     home-manager.nixosModules.home-manager
   ];
 
