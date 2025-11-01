@@ -3,7 +3,6 @@
     ../../modules/hardware/qemu.nix
     ./hardware-configuration.nix
     ./users.nix
-    home-manager.nixosModules.home-manager
   ];
 
   networking.hostName = "vm-snowman";

@@ -1,4 +1,5 @@
 { ... }: {
+  snowman.base.present = true;
   imports = [ ./security/ssh.nix ];
 
   home-manager.useGlobalPkgs = true;
@@ -6,7 +7,6 @@
 
   time.timeZone = "Europe/Berlin";
   nixpkgs.config.allowUnfree = true;
-
   users.mutableUsers = false;
 
   nix.settings = {

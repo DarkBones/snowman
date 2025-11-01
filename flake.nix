@@ -9,14 +9,21 @@
 
   outputs = { self, nixpkgs, home-manager, ... }:
     let
-      mkHost = name: system:
+      systems = { vm-snowman = "x86_64-linux"; };
+      mkHost = name:
         nixpkgs.lib.nixosSystem {
-          inherit system;
+          system = systems.${name};
           specialArgs = { inherit home-manager; };
-          modules = [ ./modules/base.nix ./hosts/${name}/configuration.nix ];
+          modules = [
+            ./modules/guard/base-required.nix
+            home-manager.nixosModules.home-manager
+            ./modules/base.nix
+            ./hosts/${name}/configuration.nix
+          ];
         };
     in {
-      nixosConfigurations.vm-snowman = mkHost "vm-snowman" "x86_64-linux"; # TODO: Place in easy to configure location
+      nixosConfigurations.vm-snowman = mkHost
+        "vm-snowman"; # TODO: Place in easy to configure location and import
 
       apps.x86_64-linux.deploy-vm = let
         pkgs = import nixpkgs { system = "x86_64-linux"; };
