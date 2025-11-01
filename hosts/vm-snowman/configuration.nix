@@ -1,6 +1,5 @@
 { config, home-manager, ... }: {
   imports = [
-    ../../modules/base.nix
     ../../modules/hardware/qemu.nix
     ./hardware-configuration.nix
     ./users.nix
