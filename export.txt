@@ -42,25 +42,15 @@
   imports = [
     ../../modules/base.nix
     ../../modules/hardware/qemu.nix
+    ../../users
     ./hardware-configuration.nix
     home-manager.nixosModules.home-manager
   ];
-
-  home-manager.useGlobalPkgs = true;
-  home-manager.useUserPackages = true;
-  home-manager.users.bas = import ../../home/bas.nix;
 
   networking.hostName = "vm-snowman";
 
   boot.loader.grub.enable = true;
   boot.loader.grub.devices = [ "/dev/vda" ];
-
-  # TODO: Have users be file-based. I.e. each user has a file in some subdirectory
-  users.users.bas = {
-    isNormalUser = true;
-    extraGroups = [ "wheel" ];
-    openssh.authorizedKeys.keys = [ (builtins.readFile ../../keys/bas.pub) ];
-  };
 
   security.sudo.wheelNeedsPassword = false;
   system.stateVersion = "25.05";
@@ -138,7 +128,6 @@
   systemd.targets.hibernate.enable = false;
 
   boot.kernel.sysctl."vm.swappiness" = 10;
-  networking.useNetworkd = true;
   systemd.network.wait-online.enable = false;
   networking.networkmanager.enable = false;
   systemd.network.enable = true;
@@ -163,6 +152,7 @@
       UseDns = false;
       ClientAliveInterval = 300;
       ClientAliveCountMax = 2;
+      LogLevel = "VERBOSE";
     };
 
     hostKeys = [
@@ -188,6 +178,9 @@
 
 { ... }: {
   imports = [ ./security/ssh.nix ];
+
+  home-manager.useGlobalPkgs = true;
+  home-manager.useUserPackages = true;
 
   time.timeZone = "Europe/Berlin";
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
@@ -263,6 +256,36 @@
     };
   };
 }
+```
+
+
+```nix
+# users/bas.nix
+
+{ pkgs, ... }: {
+  users.users.bas = {
+    isNormalUser = true;
+    shell = pkgs.bashInteractive; # TODO: Consider pkgs.zsh
+    extraGroups = [ "wheel" ];
+    openssh.authorizedKeys.keys = [ (builtins.readFile ../keys/bas.pub) ];
+  };
+
+  home-manager.users.bas = import ../home/bas.nix;
+}
+```
+
+
+```nix
+# users/default.nix
+
+{ ... }:
+let
+  entries = builtins.readDir ./.;
+
+  nixFiles = builtins.filter (name:
+    entries.${name} == "regular" && builtins.match "^[^_].*\\.nix$" name != null
+    && name != "default.nix") (builtins.attrNames entries);
+in { imports = map (name: ./. + "/${name}") nixFiles; }
 ```
 
 

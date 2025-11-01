@@ -12,6 +12,7 @@
       UseDns = false;
       ClientAliveInterval = 300;
       ClientAliveCountMax = 2;
+      LogLevel = "VERBOSE";
     };
 
     hostKeys = [

@@ -1,5 +1,8 @@
-{ ... }: {
+{ pkgs, ... }: {
   imports = [ ./security/ssh.nix ];
+
+  home-manager.useGlobalPkgs = true;
+  home-manager.useUserPackages = true;
 
   time.timeZone = "Europe/Berlin";
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
@@ -13,4 +16,6 @@
       "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
     ];
   };
+
+  environment.systemPackages = with pkgs; [ alejandra deadnix ];
 }
