@@ -98,7 +98,7 @@
               fi
               cd "$ROOT_DIR"
 
-              # small helper: use mkpasswd if present, otherwise nix shell it
+              # helper: mkpasswd from PATH or nix shell
               get_mkpasswd() {
                 if command -v mkpasswd >/dev/null 2>&1; then
                   mkpasswd "$@"
@@ -118,14 +118,11 @@
                 HOST_PUB="$(ssh -t "$TARGET" 'sudo cat /etc/ssh/ssh_host_ed25519_key.pub' | tr -d "\r")"
               fi
 
-              if ! grep -q "secrets/$USERNAME-password.age" secrets.nix; then
-                echo "Adding recipients for $USERNAME to secrets.nix…"
-                printf '{ "secrets/%s-password.age".publicKeys = [ "%s" ]; }\n' "$USERNAME" "$HOST_PUB" >> secrets.nix
-              fi
-
+              # ensure users/keys placeholder
               mkdir -p users/keys
-              touch "users/keys/$USERNAME.pub"
+              : > "users/keys/$USERNAME.pub" || true
 
+              # insert user block if missing
               if ! grep -qE "^[[:space:]]*$USERNAME[[:space:]]*=" users/registry.nix; then
                 echo "Adding user block to users/registry.nix…"
                 NEXT_UID=$(( $(getent passwd | awk -F: '$3>=1000 {print $3}' | sort -n | tail -1) + 1 ))
@@ -150,18 +147,36 @@
           EOF
               fi
 
+              # === SAFE EDIT of secrets.nix ===
+              # Insert entry BEFORE the final '}' so it works for both:
+              #   { ... }  OR  let ... in { ... }
+              if ! grep -q "secrets/$USERNAME-password.age" secrets.nix; then
+                echo "Adding recipients for $USERNAME to secrets.nix…"
+                TMP="$(mktemp)"
+                # copy everything except the last line
+                sed '$d' secrets.nix > "$TMP"
+                # ensure file ends with '{' block; if not, initialize
+                if ! tail -n1 secrets.nix | grep -q '}' ; then
+                  # very unlikely, but make sure we have an opening block
+                  printf '{\n' >> "$TMP"
+                fi
+                printf '  "secrets/%s-password.age".publicKeys = [ "%s" ];\n' "$USERNAME" "$HOST_PUB" >> "$TMP"
+                printf '}\n' >> "$TMP"
+                mv "$TMP" secrets.nix
+              fi
+
               echo "Create a login password for $USERNAME (hashed with yescrypt)…"
               HASH="$(get_mkpasswd -m yescrypt)"
               printf '%s\n' "$HASH" | EDITOR=tee sudo -E ${agenixBin} -e "secrets/$USERNAME-password.age" >/dev/null
 
-              echo "Tip: paste $USERNAME's SSH public key into users/keys/$USERNAME.pub (optional)."
+              echo "Tip: paste $USERNAME'\'\'s SSH public key into users/keys/$USERNAME.pub (optional)."
 
               echo "Deploying to $TARGET…"
               nix run .#deploy-vm "$TARGET" "$SSH_USER"
 
               echo "✅ User $USERNAME deployed. Try: ssh $SSH_USER@$(printf '%s' "$TARGET" | sed 's/.*@//') && su - $USERNAME"
         '';
-        drv = pkgs.writeShellScriptBin "add-user" script;
+        drv = pkgs.writeShellScriptBin "add-user" "$script";
       in {
         type = "app";
         program = "${drv}/bin/add-user";
