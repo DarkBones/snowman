@@ -1,14 +1,16 @@
-{ lib, ... }: {
+{ lib, ... }:
+let users = builtins.attrNames (import ../../users/registry.nix);
+in {
   networking.firewall = {
     enable = true;
     allowedTCPPorts = [ 22 ];
-    logRefusedConnections = true; # TODO: Notify user on new refused attempts
+    logRefusedConnections = true;
   };
 
   services.openssh.settings = {
     MaxAuthTries = 3;
     LoginGraceTime = "30s";
-    AllowUsers = [ "bas" ];
+    AllowUsers = users;
     AuthenticationMethods = "publickey";
   };
 
