@@ -1,6 +1,6 @@
 { ... }: {
   snowman.base.present = true;
-  imports = [ ./security/ssh.nix ];
+  imports = [ ./security/ssh.nix ./security/hardening-min.nix ];
 
   home-manager.useGlobalPkgs = true;
   home-manager.useUserPackages = true;
