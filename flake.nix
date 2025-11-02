@@ -69,16 +69,27 @@
       };
 
       apps.x86_64-linux.add-user = let
-        pkgs = import nixpkgs { system = "x86_64-linux"; };
-        drv = pkgs.writeShellScriptBin "add-user" ''
+        system = "x86_64-linux";
+        pkgs = import nixpkgs { inherit system; };
+        agenixBin = "${agenix.packages.${system}.default}/bin/agenix";
+      in let
+        script = ''
               #!/usr/bin/env bash
               set -euo pipefail
 
-              if [ $# -ne 1 ]; then
-                echo "usage: nix run .#add-user <username>" >&2
+              if [ $# -lt 2 ] || [ $# -gt 3 ]; then
+                echo "usage: nix run .#add-user <username> <host|user@host> [ssh-user]" >&2
+                echo "ex:    nix run .#add-user alice bas@192.168.122.194" >&2
                 exit 1
               fi
+
               USERNAME="$1"
+              TARGET="$2"
+              if [ $# -ge 3 ]; then
+                SSH_USER="$3"
+              else
+                SSH_USER="$(printf '%s' "$TARGET" | cut -d@ -f1)"
+              fi
 
               ROOT_DIR="$(git rev-parse --show-toplevel 2>/dev/null || true)"
               if [ -z "$ROOT_DIR" ]; then
@@ -87,23 +98,35 @@
               fi
               cd "$ROOT_DIR"
 
-              # 0) sanity: required files
+              # small helper: use mkpasswd if present, otherwise nix shell it
+              get_mkpasswd() {
+                if command -v mkpasswd >/dev/null 2>&1; then
+                  mkpasswd "$@"
+                else
+                  nix shell --quiet nixpkgs#whois -c mkpasswd "$@"
+                fi
+              }
+
+              # sanity
               test -f "secrets.nix" || { echo "error: secrets.nix missing"; exit 3; }
               test -f "users/registry.nix" || { echo "error: users/registry.nix missing"; exit 4; }
 
-              # 1) host pubkey for agenix recipients
-              HOST_PUB="$(sudo cat /etc/ssh/ssh_host_ed25519_key.pub)"
-              if ! grep -qF "$HOST_PUB" secrets.nix; then
-                echo "Adding this host key to secrets.nix recipients for $USERNAME…"
+              echo "Reading host key from $TARGET…"
+              HOST_PUB="$(ssh "$TARGET" 'cat /etc/ssh/ssh_host_ed25519_key.pub' 2>/dev/null || true)"
+              if [ -z "$HOST_PUB" ]; then
+                echo "Remote host key requires sudo; prompting on $TARGET…"
+                HOST_PUB="$(ssh -t "$TARGET" 'sudo cat /etc/ssh/ssh_host_ed25519_key.pub' | tr -d "\r")"
+              fi
+
+              if ! grep -q "secrets/$USERNAME-password.age" secrets.nix; then
+                echo "Adding recipients for $USERNAME to secrets.nix…"
                 printf '{ "secrets/%s-password.age".publicKeys = [ "%s" ]; }\n' "$USERNAME" "$HOST_PUB" >> secrets.nix
               fi
 
-              # 2) create empty ssh pubkey file (user can paste later)
               mkdir -p users/keys
               touch "users/keys/$USERNAME.pub"
 
-              # 3) insert user block if absent
-              if ! grep -qE "^\\s*$USERNAME\\s*=" users/registry.nix; then
+              if ! grep -qE "^[[:space:]]*$USERNAME[[:space:]]*=" users/registry.nix; then
                 echo "Adding user block to users/registry.nix…"
                 NEXT_UID=$(( $(getent passwd | awk -F: '$3>=1000 {print $3}' | sort -n | tail -1) + 1 ))
                 cat >> users/registry.nix <<EOF
@@ -127,25 +150,18 @@
           EOF
               fi
 
-              # 4) generate password hash and write encrypted secret (no editor UI)
-              echo "Create a login password for $USERNAME (will be hashed with yescrypt)…"
-              HASH="$(nix shell nixpkgs#whois -c mkpasswd -m yescrypt)"
-              printf '%s\n' "$HASH" | EDITOR=tee nix run nixpkgs#agenix -- -e "secrets/$USERNAME-password.age" >/dev/null
+              echo "Create a login password for $USERNAME (hashed with yescrypt)…"
+              HASH="$(get_mkpasswd -m yescrypt)"
+              printf '%s\n' "$HASH" | EDITOR=tee sudo -E ${agenixBin} -e "secrets/$USERNAME-password.age" >/dev/null
 
               echo "Tip: paste $USERNAME's SSH public key into users/keys/$USERNAME.pub (optional)."
 
-              # 5) rebuild this host
-              HOST="$(hostname)"
-              echo "Rebuilding flake for host $HOST…"
-              if ! sudo nixos-rebuild switch --flake .#"$HOST"; then
-                echo
-                echo "Rebuild failed. Ensure this machine has a host entry .#$HOST in flake.nix."
-                echo "You can also run: sudo nixos-rebuild switch --flake .#<your-host-name>"
-                exit 5
-              fi
+              echo "Deploying to $TARGET…"
+              nix run .#deploy-vm "$TARGET" "$SSH_USER"
 
-              echo "✅ User $USERNAME added. Try: su - $USERNAME"
+              echo "✅ User $USERNAME deployed. Try: ssh $SSH_USER@$(printf '%s' "$TARGET" | sed 's/.*@//') && su - $USERNAME"
         '';
+        drv = pkgs.writeShellScriptBin "add-user" script;
       in {
         type = "app";
         program = "${drv}/bin/add-user";
