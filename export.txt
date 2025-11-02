@@ -212,6 +212,24 @@ in { imports = map (n: ./. + "/${n}") nixFiles; }
 
 
 ```nix
+# modules/security/user-password.nix
+
+{ username, secretPath ? null, enable ? true }:
+{ lib, config, ... }:
+let
+  path = if secretPath != null then
+    secretPath
+  else
+    ../secrets/${username}-password.age;
+in lib.mkIf enable {
+  age.secrets."${username}-password".file = path;
+  users.users.${username}.hashedPasswordFile =
+    config.age.secrets."${username}-password".path;
+}
+```
+
+
+```nix
 # modules/guard/base-required.nix
 
 { lib, config, ... }: {
@@ -252,7 +270,7 @@ in { imports = map (n: ./. + "/${n}") nixFiles; }
     ];
   };
 
-  age.identityPaths = [ "/etc/ssh/ssh_hort_ed25519_key" ];
+  age.identityPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
 }
 ```
 
@@ -261,9 +279,17 @@ in { imports = map (n: ./. + "/${n}") nixFiles; }
 # users/bas.nix
 
 { pkgs, ... }: {
+  imports = [
+    (import ../modules/security/user-password.nix {
+      username = "bas";
+      secretPath = ../secrets/bas-password.age;
+      enable = true;
+    })
+  ];
+
   users.users.bas = {
     isNormalUser = true;
-    shell = pkgs.bashInteractive; # TODO: Consider pkgs.zsh
+    shell = pkgs.bashInteractive;
     extraGroups = [ "wheel" ];
     openssh.authorizedKeys.keys = [ (builtins.readFile ../keys/bas.pub) ];
   };
@@ -348,12 +374,14 @@ in { imports = map (n: ./. + "/${n}") nixFiles; }
 
 
 ```nix
-# secrets/secrets.nix
+# secrets.nix
 
 let
   vm =
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIM2QpjjL/CDH8on/kJh8P5KQmOK75MIosR/q81X6W+Rm root@nixos";
-in { "bas-password.age".publicKeys = [ vm ]; }
+  arch =
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMgJkfQdIJmmvaVQAJBvHiI5lMx/FdSVW3bJCXGQfAyL bas@dorkbones-2025-09-22"; # TODO: Remove
+in { "secrets/bas-password.age".publicKeys = [ vm arch ]; }
 ```
 
 
