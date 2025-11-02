@@ -1,4 +1,6 @@
-{ lib, ... }: {
+{ lib, ... }:
+let users = builtins.attrNames (import ../../users/registry.nix);
+in {
   networking.firewall = {
     enable = true;
     allowedTCPPorts = [ 22 ];
@@ -8,15 +10,16 @@
   services.openssh.settings = {
     MaxAuthTries = 3;
     LoginGraceTime = "30s";
-    AllowUsers = [ "bas" ];
+    AllowUsers = users;
     AuthenticationMethods = "publickey";
   };
+
+  security.sudo.wheelNeedsPassword = lib.mkForce true;
 
   services.fail2ban = {
     enable = true;
     jails.sshd.settings = {
       enabled = true;
-      filter = "sshd";
       backend = "systemd";
       port = "ssh";
       banaction = "iptables-multiport";
@@ -25,6 +28,4 @@
       bantime = "1h";
     };
   };
-
-  security.sudo.wheelNeedsPassword = lib.mkForce true;
 }
