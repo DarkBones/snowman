@@ -232,7 +232,7 @@ in { imports = map (n: ./. + "/${n}") nixFiles; }
 # modules/base.nix
 
 { ... }: {
-  snoman.base.present = true;
+  snowman.base.present = true;
   imports = [ ./security/ssh.nix ];
 
   home-manager.useGlobalPkgs = true;
@@ -240,7 +240,6 @@ in { imports = map (n: ./. + "/${n}") nixFiles; }
 
   time.timeZone = "Europe/Berlin";
   nixpkgs.config.allowUnfree = true;
-
   users.mutableUsers = false;
 
   nix.settings = {
