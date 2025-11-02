@@ -10,6 +10,6 @@
   boot.loader.grub.enable = true;
   boot.loader.grub.devices = [ "/dev/vda" ];
 
-  security.sudo.wheelNeedsPassword = false;
+  security.sudo.wheelNeedsPassword = true;
   system.stateVersion = "25.05";
 }
