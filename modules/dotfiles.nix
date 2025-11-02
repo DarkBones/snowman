@@ -49,7 +49,7 @@ in {
         if [ ! -d "$DIR/.git" ]; then
           mkdir -p "$DIR"
           $git clone --no-checkout "$REPO" "$DIR"
-          $git -C "$DIR" sparse-checkout init --cone
+          $git -C "$DIR/" sparse-checkout init --cone
           
           # FIX: Use modern sparse-checkout set syntax
           $git -C "$DIR" sparse-checkout set ${lib.escapeShellArgs cfg.sparse}

@@ -10,6 +10,7 @@
     dotfiles = {
       enable = true;
       sparse = [ "nvim" ];
+      linkMap = { ".config/nvim" = "nvim/.config/nvim"; };
     };
   };
 }
