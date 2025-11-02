@@ -67,5 +67,88 @@
         type = "app";
         program = "${drv}/bin/deploy-vm";
       };
+
+      apps.x86_64-linux.add-user = let
+        pkgs = import nixpkgs { system = "x86_64-linux"; };
+        drv = pkgs.writeShellScriptBin "add-user" ''
+              #!/usr/bin/env bash
+              set -euo pipefail
+
+              if [ $# -ne 1 ]; then
+                echo "usage: nix run .#add-user <username>" >&2
+                exit 1
+              fi
+              USERNAME="$1"
+
+              ROOT_DIR="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+              if [ -z "$ROOT_DIR" ]; then
+                echo "error: run inside the Snowman repo (git root not found)." >&2
+                exit 2
+              fi
+              cd "$ROOT_DIR"
+
+              # 0) sanity: required files
+              test -f "secrets.nix" || { echo "error: secrets.nix missing"; exit 3; }
+              test -f "users/registry.nix" || { echo "error: users/registry.nix missing"; exit 4; }
+
+              # 1) host pubkey for agenix recipients
+              HOST_PUB="$(sudo cat /etc/ssh/ssh_host_ed25519_key.pub)"
+              if ! grep -qF "$HOST_PUB" secrets.nix; then
+                echo "Adding this host key to secrets.nix recipients for $USERNAME…"
+                printf '{ "secrets/%s-password.age".publicKeys = [ "%s" ]; }\n' "$USERNAME" "$HOST_PUB" >> secrets.nix
+              fi
+
+              # 2) create empty ssh pubkey file (user can paste later)
+              mkdir -p users/keys
+              touch "users/keys/$USERNAME.pub"
+
+              # 3) insert user block if absent
+              if ! grep -qE "^\\s*$USERNAME\\s*=" users/registry.nix; then
+                echo "Adding user block to users/registry.nix…"
+                NEXT_UID=$(( $(getent passwd | awk -F: '$3>=1000 {print $3}' | sort -n | tail -1) + 1 ))
+                cat >> users/registry.nix <<EOF
+
+          $USERNAME = {
+            uid = $NEXT_UID;
+            groups = [ "wheel" ];
+            shell = "zsh";
+            sshPubKeyFile = ../keys/$USERNAME.pub;
+            passwordSecret = ../secrets/$USERNAME-password.age;
+
+            roles = {
+              dev.enable = true;
+              dotfiles = {
+                enable = true;
+                sparse = [ "nvim" ];
+                linkMap = { ".config/nvim" = "nvim/.config/nvim"; };
+              };
+            };
+          };
+          EOF
+              fi
+
+              # 4) generate password hash and write encrypted secret (no editor UI)
+              echo "Create a login password for $USERNAME (will be hashed with yescrypt)…"
+              HASH="$(nix shell nixpkgs#whois -c mkpasswd -m yescrypt)"
+              printf '%s\n' "$HASH" | EDITOR=tee nix run nixpkgs#agenix -- -e "secrets/$USERNAME-password.age" >/dev/null
+
+              echo "Tip: paste $USERNAME's SSH public key into users/keys/$USERNAME.pub (optional)."
+
+              # 5) rebuild this host
+              HOST="$(hostname)"
+              echo "Rebuilding flake for host $HOST…"
+              if ! sudo nixos-rebuild switch --flake .#"$HOST"; then
+                echo
+                echo "Rebuild failed. Ensure this machine has a host entry .#$HOST in flake.nix."
+                echo "You can also run: sudo nixos-rebuild switch --flake .#<your-host-name>"
+                exit 5
+              fi
+
+              echo "✅ User $USERNAME added. Try: su - $USERNAME"
+        '';
+      in {
+        type = "app";
+        program = "${drv}/bin/add-user";
+      };
     };
 }
