@@ -2,7 +2,7 @@
 
 Each user in **Snowman** lives under `users/<name>.nix` and can optionally have an encrypted password managed by **agenix**.
 
-### 1️⃣ Create the user file
+### Create the user file
 
 Create `users/<name>.nix` (for example `users/alex.nix`):
 
@@ -38,7 +38,7 @@ Then add this file to the relevant host (e.g. `hosts/vm-snowman/users.nix`):
 
 ---
 
-### 2️⃣ Generate a password
+### Generate a password
 
 Run on your **dev machine** (not inside the VM):
 
@@ -50,7 +50,7 @@ Copy the resulting `$y$...` hash.
 
 ---
 
-### 3️⃣ Encrypt it with agenix
+### 3️⃣Encrypt it with agenix
 
 If this is the first time you’re using this host, make sure its SSH host public key is in `secrets.nix`.
 You can retrieve it from the VM with:
@@ -78,7 +78,7 @@ nix run github:ryantm/agenix -- -e secrets/alex-password.age
 
 ---
 
-### 4️⃣ Deploy
+### Deploy
 
 Push the updated configuration to your host:
 
@@ -90,7 +90,7 @@ nix run .#deploy-vm bas@192.168.122.194
 
 ---
 
-### 5️⃣ Verify
+### Verify
 
 SSH into the machine and test:
 
