@@ -74,107 +74,103 @@
         agenixBin = "${agenix.packages.${system}.default}/bin/agenix";
       in let
         script = ''
-              #!/usr/bin/env bash
-              set -euo pipefail
+          #!/usr/bin/env bash
+          set -euo pipefail
 
-              if [ $# -lt 2 ] || [ $# -gt 3 ]; then
-                echo "usage: nix run .#add-user <username> <host|user@host> [ssh-user]" >&2
-                echo "ex:    nix run .#add-user alice bas@192.168.122.194" >&2
-                exit 1
-              fi
+          if [ $# -lt 2 ] || [ $# -gt 3 ]; then
+            echo "usage: nix run .#add-user <username> <host|user@host> [ssh-user]" >&2
+            exit 1
+          fi
 
-              USERNAME="$1"
-              TARGET="$2"
-              if [ $# -ge 3 ]; then
-                SSH_USER="$3"
-              else
-                SSH_USER="$(printf '%s' "$TARGET" | cut -d@ -f1)"
-              fi
+          USERNAME="$1"
+          TARGET="$2"
+          SSH_USER="$3:-$(printf '%s' "$TARGET" | cut -d@ -f1)"
 
-              ROOT_DIR="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-              if [ -z "$ROOT_DIR" ]; then
-                echo "error: run inside the Snowman repo (git root not found)." >&2
-                exit 2
-              fi
-              cd "$ROOT_DIR"
+          ROOT_DIR="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+          if [ -z "$ROOT_DIR" ]; then
+            echo "error: run inside the Snowman repo (git root not found)." >&2
+            exit 2
+          fi
+          cd "$ROOT_DIR"
 
-              # helper: mkpasswd from PATH or nix shell
-              get_mkpasswd() {
-                if command -v mkpasswd >/dev/null 2>&1; then
-                  mkpasswd "$@"
-                else
-                  nix shell --quiet nixpkgs#whois -c mkpasswd "$@"
-                fi
+          get_mkpasswd() {
+            if command -v mkpasswd >/dev/null 2>&1; then
+              mkpasswd "$@"
+            else
+              nix shell --quiet nixpkgs#whois -c mkpasswd "$@"
+            fi
+          }
+
+          test -f "secrets.nix" || { echo "error: secrets.nix missing"; exit 3; }
+          test -f "users/registry.nix" || { echo "error: users/registry.nix missing"; exit 4; }
+
+          echo "[snowman:add-user] Reading host key from $TARGET…"
+          HOST_PUB="$(ssh "$TARGET" 'cat /etc/ssh/ssh_host_ed25519_key.pub' 2>/dev/null || true)"
+          if [ -z "$HOST_PUB" ]; then
+            echo "Remote host key requires sudo; prompting on $TARGET…"
+            HOST_PUB="$(ssh -t "$TARGET" 'sudo cat /etc/ssh/ssh_host_ed25519_key.pub' | tr -d "\r")"
+          fi
+
+          mkdir -p users/keys
+          : > "users/keys/$USERNAME.pub"
+
+          # === users/registry.nix ===
+          if ! grep -qE "^[[:space:]]*$USERNAME[[:space:]]*=" users/registry.nix; then
+            echo "[snowman:add-user] Adding $USERNAME to users/registry.nix…"
+            TMP="$(mktemp)"
+            awk -v uname="$USERNAME" -v pub="../keys/$USERNAME.pub" -v secret="../secrets/$USERNAME-password.age" '
+              BEGIN { done=0 }
+              /^\}/ && !done {
+                print "  " uname " = {"
+                print "    uid = 1001;"
+                print "    groups = [ \"wheel\" ];"
+                print "    shell = \"zsh\";"
+                print "    sshPubKeyFile = " pub ";"
+                print "    passwordSecret = " secret ";"
+                print ""
+                print "    roles = {"
+                print "      dev.enable = true;"
+                print "      dotfiles = {"
+                print "        enable = true;"
+                print "        sparse = [ \"nvim\" ];"
+                print "        linkMap = { \".config/nvim\" = \"nvim/.config/nvim\"; };"
+                print "      };"
+                print "    };"
+                print "  };"
+                done=1
               }
+              { print }
+            ' users/registry.nix > "$TMP"
+            mv "$TMP" users/registry.nix
+          fi
 
-              # sanity
-              test -f "secrets.nix" || { echo "error: secrets.nix missing"; exit 3; }
-              test -f "users/registry.nix" || { echo "error: users/registry.nix missing"; exit 4; }
+          # === secrets.nix ===
+          if ! grep -q "secrets/$USERNAME-password.age" secrets.nix; then
+            echo "[snowman:add-user] Adding $USERNAME to secrets.nix…"
+            TMP="$(mktemp)"
+            if grep -q "^let" secrets.nix; then
+              # has 'let ... in {'
+              awk -v uname="$USERNAME" -v key="$HOST_PUB" '
+                /^}/ && ++n==1 { print "  \"secrets/" uname "-password.age\".publicKeys = [ \"" key "\" ];"; }
+                { print }
+              ' secrets.nix > "$TMP"
+            else
+              # plain { … }
+              awk -v uname="$USERNAME" -v key="$HOST_PUB" '
+                /^}/ && ++n==1 { print "  \"secrets/" uname "-password.age\".publicKeys = [ \"" key "\" ];"; }
+                { print }
+              ' secrets.nix > "$TMP"
+            fi
+            mv "$TMP" secrets.nix
+          fi
 
-              echo "Reading host key from $TARGET…"
-              HOST_PUB="$(ssh "$TARGET" 'cat /etc/ssh/ssh_host_ed25519_key.pub' 2>/dev/null || true)"
-              if [ -z "$HOST_PUB" ]; then
-                echo "Remote host key requires sudo; prompting on $TARGET…"
-                HOST_PUB="$(ssh -t "$TARGET" 'sudo cat /etc/ssh/ssh_host_ed25519_key.pub' | tr -d "\r")"
-              fi
+          echo "[snowman:add-user] Create a login password for $USERNAME (hashed with yescrypt)…"
+          HASH="$(get_mkpasswd -m yescrypt)"
+          printf '%s\n' "$HASH" | EDITOR=tee sudo -E ${agenixBin} -e "secrets/$USERNAME-password.age" >/dev/null
 
-              # ensure users/keys placeholder
-              mkdir -p users/keys
-              : > "users/keys/$USERNAME.pub" || true
-
-              # insert user block if missing
-              if ! grep -qE "^[[:space:]]*$USERNAME[[:space:]]*=" users/registry.nix; then
-                echo "Adding user block to users/registry.nix…"
-                NEXT_UID=$(( $(getent passwd | awk -F: '$3>=1000 {print $3}' | sort -n | tail -1) + 1 ))
-                cat >> users/registry.nix <<EOF
-
-          $USERNAME = {
-            uid = $NEXT_UID;
-            groups = [ "wheel" ];
-            shell = "zsh";
-            sshPubKeyFile = ../keys/$USERNAME.pub;
-            passwordSecret = ../secrets/$USERNAME-password.age;
-
-            roles = {
-              dev.enable = true;
-              dotfiles = {
-                enable = true;
-                sparse = [ "nvim" ];
-                linkMap = { ".config/nvim" = "nvim/.config/nvim"; };
-              };
-            };
-          };
-          EOF
-              fi
-
-              # === SAFE EDIT of secrets.nix ===
-              # Insert entry BEFORE the final '}' so it works for both:
-              #   { ... }  OR  let ... in { ... }
-              if ! grep -q "secrets/$USERNAME-password.age" secrets.nix; then
-                echo "Adding recipients for $USERNAME to secrets.nix…"
-                TMP="$(mktemp)"
-                # copy everything except the last line
-                sed '$d' secrets.nix > "$TMP"
-                # ensure file ends with '{' block; if not, initialize
-                if ! tail -n1 secrets.nix | grep -q '}' ; then
-                  # very unlikely, but make sure we have an opening block
-                  printf '{\n' >> "$TMP"
-                fi
-                printf '  "secrets/%s-password.age".publicKeys = [ "%s" ];\n' "$USERNAME" "$HOST_PUB" >> "$TMP"
-                printf '}\n' >> "$TMP"
-                mv "$TMP" secrets.nix
-              fi
-
-              echo "Create a login password for $USERNAME (hashed with yescrypt)…"
-              HASH="$(get_mkpasswd -m yescrypt)"
-              printf '%s\n' "$HASH" | EDITOR=tee sudo -E ${agenixBin} -e "secrets/$USERNAME-password.age" >/dev/null
-
-              echo "Tip: paste $USERNAME'\'\'s SSH public key into users/keys/$USERNAME.pub (optional)."
-
-              echo "Deploying to $TARGET…"
-              nix run .#deploy-vm "$TARGET" "$SSH_USER"
-
-              echo "✅ User $USERNAME deployed. Try: ssh $SSH_USER@$(printf '%s' "$TARGET" | sed 's/.*@//') && su - $USERNAME"
+          echo "[snowman:add-user] Deploying to $TARGET…"
+          nix run .#deploy-vm "$TARGET" "$SSH_USER"
+          echo "✅ User $USERNAME deployed successfully."
         '';
         drv = pkgs.writeShellScriptBin "add-user" "$script";
       in {
