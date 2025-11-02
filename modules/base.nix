@@ -9,6 +9,10 @@
   nixpkgs.config.allowUnfree = true;
   users.mutableUsers = false;
 
+  security.sudo.extraConfig = ''
+    Defaults !tty_tickets
+  '';
+
   nix.settings = {
     experimental-features = [ "nix-command" "flakes" ];
     substituters =
