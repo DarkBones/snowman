@@ -25,10 +25,9 @@ in {
     };
     sparse = lib.mkOption {
       type = lib.types.listOf lib.types.str;
-      default = [ "nvim" ]; # paths in repo
+      default = [ "nvim" ];
     };
     linkMap = lib.mkOption {
-      # target path (relative to $HOME) -> source path in repo
       type = lib.types.attrsOf lib.types.str;
       default = { ".config/nvim" = "nvim"; };
     };
@@ -37,38 +36,38 @@ in {
   config = lib.mkIf cfg.enable {
     xdg.enable = true;
 
-    home.activation.dotfilesSync = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-      set -euo pipefail
-      REPO=${cfg.repo}
-      BR=${cfg.branch}
-      DIR=${cfg.dir}
+    home.activation.dotfilesSync =
+      lib.hm.dag.entryAfter [ "installDotfilesKey" ] ''
+        set -euo pipefail
+        REPO=${cfg.repo}
+        BR=${cfg.branch}
+        DIR=${cfg.dir}
 
-      if [ ! -d "$DIR/.git" ]; then
-        mkdir -p "$DIR"
-        git clone --no-checkout "$REPO" "$DIR"
-        git -C "$DIR" sparse-checkout init --cone
-        ${
-          lib.concatStringsSep "\n"
-          (map (p: ''git -C "$DIR" sparse-checkout set --no-cone --add "${p}"'')
-            cfg.sparse)
-        }
-        git -C "$DIR" checkout "$BR" || git -C "$DIR" checkout -b "$BR" "origin/$BR" || true
-      else
-        git -C "$DIR" fetch --prune || true
-        git -C "$DIR" switch "$BR" || true
-        git -C "$DIR" pull --ff-only || true
-        # keep sparse patterns in sync
-        ${
-          lib.concatStringsSep "\n"
-          (map (p: ''git -C "$DIR" sparse-checkout set --no-cone --add "${p}"'')
-            cfg.sparse)
-        }
-      fi
+        # Define the path to git
+        git="${pkgs.git}/bin/git"
 
-      git -C "$DIR" config --global --add safe.directory "$DIR" || true
+        if [ ! -d "$DIR/.git" ]; then
+          mkdir -p "$DIR"
+          $git clone --no-checkout "$REPO" "$DIR"
+          $git -C "$DIR" sparse-checkout init --cone
+          
+          # FIX: Use modern sparse-checkout set syntax
+          $git -C "$DIR" sparse-checkout set ${lib.escapeShellArgs cfg.sparse}
+          
+          $git -C "$DIR" checkout "$BR" || $git -C "$DIR" checkout -b "$BR" "origin/$BR" || true
+        else
+          $git -C "$DIR" fetch --prune || true
+          $git -C "$DIR" switch "$BR" || true
+          $git -C "$DIR" pull --ff-only || true
+          
+          # FIX: Use modern sparse-checkout set syntax
+          $git -C "$DIR" sparse-checkout set ${lib.escapeShellArgs cfg.sparse}
+        fi
 
-      # Link requested items
-      ${lib.concatStringsSep "\n" (lib.mapAttrsToList linkOne cfg.linkMap)}
-    '';
+        $git -C "$DIR" config --global --add safe.directory "$DIR" || true
+
+        # Link requested items
+        ${lib.concatStringsSep "\n" (lib.mapAttrsToList linkOne cfg.linkMap)}
+      '';
   };
 }

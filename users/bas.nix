@@ -21,7 +21,7 @@
   age.secrets."dotfiles-deploy-key" = {
     file = ../secrets/dotfiles-deploy-key.age;
     owner = "root";
-    group = "root";
+    group = "wheel";
     mode = "0400";
   };
 

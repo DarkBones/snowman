@@ -53,6 +53,9 @@
             fi
           fi
 
+          # Use NIX_SSHOPTS to enable SSH connection sharing
+          export NIX_SSHOPTS="-o ControlMaster=auto -o ControlPersist=60 -o ControlPath=~/.ssh/control-%r@%h:%p"
+
           exec nix run nixpkgs#nixos-rebuild -- switch \
             --flake .#vm-snowman \
             --target-host "$user@$target" \
