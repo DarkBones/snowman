@@ -1,1 +1,1 @@
-{ ... }: { imports = [ ../../users/bas.nix ]; }
+{ ... }: { imports = [ ../../modules/users.nix ]; }
