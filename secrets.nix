@@ -1,0 +1,6 @@
+let
+  vm =
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIM2QpjjL/CDH8on/kJh8P5KQmOK75MIosR/q81X6W+Rm root@nixos";
+  arch =
+    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMgJkfQdIJmmvaVQAJBvHiI5lMx/FdSVW3bJCXGQfAyL bas@dorkbones-2025-09-22"; # TODO: Remove
+in { "secrets/bas-password.age".publicKeys = [ vm arch ]; }

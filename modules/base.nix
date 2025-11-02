@@ -1,6 +1,6 @@
 { ... }: {
   snowman.base.present = true;
-  imports = [ ./security/ssh.nix ];
+  imports = [ ./security/ssh.nix ./security/bas-password.nix ];
 
   home-manager.useGlobalPkgs = true;
   home-manager.useUserPackages = true;
@@ -18,4 +18,6 @@
       "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
     ];
   };
+
+  age.identityPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
 }

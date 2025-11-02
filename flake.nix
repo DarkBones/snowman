@@ -5,9 +5,10 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
     home-manager.url = "github:nix-community/home-manager/release-25.05";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
+    agenix.url = "github:ryantm/agenix";
   };
 
-  outputs = { self, nixpkgs, home-manager, ... }:
+  outputs = { self, nixpkgs, home-manager, agenix, ... }:
     let
       systems = { vm-snowman = "x86_64-linux"; };
       mkHost = name:
@@ -15,6 +16,7 @@
           system = systems.${name};
           specialArgs = { inherit home-manager; };
           modules = [
+            agenix.nixosModules.default
             ./modules/guard/base-required.nix
             home-manager.nixosModules.home-manager
             ./modules/base.nix
