@@ -1,3 +1,4 @@
+# TODO: Make easier to configure
 { config, pkgs, ... }: {
   imports = [
     (import ../modules/security/user-password.nix {
@@ -7,21 +8,22 @@
     })
   ];
 
+  users.groups.bas = { };
+
   users.users.bas = {
     isNormalUser = true;
-    shell = pkgs.bashInteractive;
+    group = "bas";
     extraGroups = [ "wheel" ];
+    shell = pkgs.bashInteractive; # TODO: Consider zsh
     openssh.authorizedKeys.keys = [ (builtins.readFile ../keys/bas.pub) ];
   };
 
-  # Home Manager config for bas
   home-manager.users.bas = import ../home/bas.nix;
 
-  # Keep deploy key as a root-owned runtime secret; HM will copy it into ~/.ssh
   age.secrets."dotfiles-deploy-key" = {
     file = ../secrets/dotfiles-deploy-key.age;
-    owner = "root";
-    group = "wheel";
+    owner = "bas";
+    group = "bas";
     mode = "0400";
   };
 
