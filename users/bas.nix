@@ -14,13 +14,15 @@
     openssh.authorizedKeys.keys = [ (builtins.readFile ../keys/bas.pub) ];
   };
 
+  # Home Manager config for bas
   home-manager.users.bas = import ../home/bas.nix;
 
+  # Keep deploy key as a root-owned runtime secret; HM will copy it into ~/.ssh
   age.secrets."dotfiles-deploy-key" = {
     file = ../secrets/dotfiles-deploy-key.age;
     owner = "root";
-    group = "wheel";
-    mode = "0440";
+    group = "root";
+    mode = "0400";
   };
 
   programs.ssh = {
@@ -30,7 +32,7 @@
         HostName github.com
         User git
         IdentitiesOnly yes
-        IdentityFile ${config.age.secrets."dotfiles-deploy-key".path}
+        IdentityFile ~/.ssh/id_github_dotfiles
     '';
   };
 }

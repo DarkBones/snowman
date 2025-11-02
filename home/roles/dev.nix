@@ -2,20 +2,41 @@
 let cfg = config.roles.dev;
 in {
   options.roles.dev.enable = lib.mkEnableOption "Dev role";
+
   config = lib.mkIf cfg.enable {
     programs.home-manager.enable = true;
+
     home.packages = with pkgs; [ git neovim ripgrep tree ];
+
     programs.direnv.enable = true;
     programs.direnv.nix-direnv.enable = true;
 
-    home.activation.dotfilesAuthProbe =
+    # 1) Install the deploy key into the user's ~/.ssh AFTER the user exists.
+    home.activation.installDotfilesKey =
       lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+        set -euo pipefail
+        src='/run/agenix/dotfiles-deploy-key'
+        dst="$HOME/.ssh/id_github_dotfiles"
+
+        mkdir -p "$HOME/.ssh"
+        chmod 700 "$HOME/.ssh" || true
+
+        if [ -r "$src" ]; then
+          install -m 600 -o "$USER" -g "$USER" "$src" "$dst"
+          echo "[key] installed ~/.ssh/id_github_dotfiles"
+        else
+          echo "[key] warning: $src not present yet (agenix not staged?)"
+        fi
+      '';
+
+    # 2) Probe auth and do first-time clone/fetch only AFTER key is placed.
+    home.activation.dotfilesAuthProbe =
+      lib.hm.dag.entryAfter [ "installDotfilesKey" ] ''
         set -euo pipefail
         repo="github-dotfiles:DarkBones/dotfiles.git"
         dir="$HOME/.local/share/dotfiles"
 
         echo "[probe] Testing GitHub auth via deploy key…"
-        # Show which key is being offered (verbose, but only on failure we print it)
         if ssh -o BatchMode=yes -T git@github-dotfiles 2>&1 | tee /tmp/ssh-probe.log; then
           echo "[probe] ssh handshake OK (GitHub will still say 'no shell')"
         else
@@ -39,5 +60,12 @@ in {
       '';
 
     programs.ssh.enable = true;
+    programs.ssh.extraConfig = ''
+      Host github-dotfiles
+        HostName github.com
+        User git
+        IdentitiesOnly yes
+        IdentityFile ~/.ssh/id_github_dotfiles
+    '';
   };
 }
