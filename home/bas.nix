@@ -5,5 +5,11 @@
   home.homeDirectory = "/home/bas";
   home.stateVersion = "25.05";
 
-  roles = { dev.enable = true; };
+  roles = {
+    dev.enable = true;
+    dotfiles = {
+      enable = true;
+      sparse = [ "nvim" ];
+    };
+  };
 }

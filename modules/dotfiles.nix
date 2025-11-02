@@ -1,0 +1,74 @@
+{ lib, config, pkgs, ... }:
+let
+  cfg = config.snowman.dotfiles;
+  linkOne = target: srcRel: ''
+    mkdir -p "$(dirname "$HOME/${target}")"
+    rm -rf "$HOME/${target}"
+    ln -s "$DIR/${srcRel}" "$HOME/${target}"
+  '';
+in {
+  options.snowman.dotfiles = {
+    enable = lib.mkEnableOption
+      "Manage private dotfiles via deploy key + sparse checkout";
+    repo = lib.mkOption {
+      type = lib.types.str;
+      default =
+        "github-dotfiles:DarkBones/dotfiles.git"; # TODO: Make link configurable
+    };
+    branch = lib.mkOption {
+      type = lib.types.str;
+      default = "main";
+    };
+    dir = lib.mkOption {
+      type = lib.types.str;
+      default = "$HOME/.local/share/dotfiles";
+    };
+    sparse = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ "nvim" ]; # paths in repo
+    };
+    linkMap = lib.mkOption {
+      # target path (relative to $HOME) -> source path in repo
+      type = lib.types.attrsOf lib.types.str;
+      default = { ".config/nvim" = "nvim"; };
+    };
+  };
+
+  config = lib.mkIf cfg.enable {
+    xdg.enable = true;
+
+    home.activation.dotfilesSync = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      set -euo pipefail
+      REPO=${cfg.repo}
+      BR=${cfg.branch}
+      DIR=${cfg.dir}
+
+      if [ ! -d "$DIR/.git" ]; then
+        mkdir -p "$DIR"
+        git clone --no-checkout "$REPO" "$DIR"
+        git -C "$DIR" sparse-checkout init --cone
+        ${
+          lib.concatStringsSep "\n"
+          (map (p: ''git -C "$DIR" sparse-checkout set --no-cone --add "${p}"'')
+            cfg.sparse)
+        }
+        git -C "$DIR" checkout "$BR" || git -C "$DIR" checkout -b "$BR" "origin/$BR" || true
+      else
+        git -C "$DIR" fetch --prune || true
+        git -C "$DIR" switch "$BR" || true
+        git -C "$DIR" pull --ff-only || true
+        # keep sparse patterns in sync
+        ${
+          lib.concatStringsSep "\n"
+          (map (p: ''git -C "$DIR" sparse-checkout set --no-cone --add "${p}"'')
+            cfg.sparse)
+        }
+      fi
+
+      git -C "$DIR" config --global --add safe.directory "$DIR" || true
+
+      # Link requested items
+      ${lib.concatStringsSep "\n" (lib.mapAttrsToList linkOne cfg.linkMap)}
+    '';
+  };
+}

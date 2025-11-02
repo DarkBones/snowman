@@ -1,1 +1,1 @@
-{ ... }: { imports = [ ./roles ]; }
+{ ... }: { imports = [ ./roles ../modules/dotfiles.nix ]; }
