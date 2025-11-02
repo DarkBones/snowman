@@ -1,30 +1,22 @@
 { pkgs, lib, config, ... }:
 let cfg = config.roles.dev;
 in {
-  options.roles.dev.enable = lib.mkEnableOption "Dev role";
+  options.roles.dev = {
+    enable = lib.mkEnableOption "Developer role (implies Neovim)";
+    extraPackages = lib.mkOption {
+      type = with lib.types; listOf package;
+      default = [ ];
+      description = "Extra dev packages beyond the Neovim toolchain.";
+    };
+  };
 
   config = lib.mkIf cfg.enable {
+    roles.nvim.enable = true;
+
     programs.home-manager.enable = true;
 
-    home.packages = with pkgs; [
-      neovim
-      tree
-      gcc
-      gnumake
-      pkg-config
-      unzip
+    home.packages = with pkgs; [ tree lazygit ] ++ cfg.extraPackages;
 
-      ripgrep
-      fd
-      fzf
-      git
-      nodejs_20
-      python3
-      wl-clipboard
-      lazygit
-    ];
-
-    # 1) Install the deploy key
     home.activation.installDotfilesKey =
       lib.hm.dag.entryAfter [ "writeBoundary" ] ''
         set -euo pipefail
