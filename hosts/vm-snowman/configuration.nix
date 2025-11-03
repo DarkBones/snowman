@@ -1,4 +1,4 @@
-{ config, home-manager, ... }: {
+{ release, ... }: {
   imports = [
     ../../modules/hardware/qemu.nix
     ./hardware-configuration.nix
@@ -10,5 +10,5 @@
   boot.loader.grub.enable = true;
   boot.loader.grub.devices = [ "/dev/vda" ];
 
-  system.stateVersion = "25.05";
+  system.stateVersion = release;
 }

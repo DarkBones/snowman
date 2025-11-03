@@ -1,4 +1,4 @@
-{ lib, pkgs, config, ... }:
+{ lib, pkgs, config, release, ... }:
 let
   registry = import ../users/registry.nix;
   toShell = s: if s == "zsh" then pkgs.zsh else pkgs.bashInteractive;
@@ -36,7 +36,7 @@ let
         imports = [ ../home/default.nix ];
         home.username = name;
         home.homeDirectory = "/home/${name}";
-        home.stateVersion = "25.05";
+        home.stateVersion = release;
         roles = u.roles or { };
       };
     };

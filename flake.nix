@@ -10,11 +10,12 @@
 
   outputs = { self, nixpkgs, home-manager, agenix, ... }:
     let
+      release = "25.05";
       systems = { vm-snowman = "x86_64-linux"; };
       mkHost = name:
         nixpkgs.lib.nixosSystem {
           system = systems.${name};
-          specialArgs = { inherit home-manager; };
+          specialArgs = { inherit home-manager release; };
           modules = [
             agenix.nixosModules.default
             ./modules/guard/base-required.nix
