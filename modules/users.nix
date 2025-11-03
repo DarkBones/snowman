@@ -1,6 +1,6 @@
 { lib, pkgs, config, release, ... }:
 let
-  registry = import ../users/registry.nix;
+  registry = import ../users/default.nix;
   toShell = s: if s == "zsh" then pkgs.zsh else pkgs.bashInteractive;
   anyZsh =
     lib.any (u: (u.shell or "bash") == "zsh") (builtins.attrValues registry);
@@ -15,11 +15,11 @@ let
     in {
       users.groups.${name} = { };
 
-      # Declare the secret path (defaults to ../secrets/<name>-password.age)
       age.secrets."${name}-password".file = u.passwordSecret or defaultSecret;
 
       users.users.${name} = {
         isNormalUser = true;
+        createHome = true;
         uid = lib.mkDefault (u.uid or null);
         group = name;
         extraGroups = u.groups or [ ];
@@ -42,6 +42,20 @@ let
     };
 in {
   imports = [ ../modules/base.nix ];
-  config = lib.mkMerge ([ (lib.mkIf anyZsh { programs.zsh.enable = true; }) ]
-    ++ lib.mapAttrsToList mkOne registry);
+
+  config = lib.mkMerge ([
+    {
+      system.activationScripts.ensureHmProfiles = {
+        deps = [ "users" ];
+        text = lib.concatStringsSep "\n" (map (u: ''
+          if id -u ${u} >/dev/null 2>&1; then
+            install -d -m 0755 -o ${u} -g ${u} /nix/var/nix/profiles/per-user/${u}
+            install -d -m 0755 -o ${u} -g ${u} /home/${u}/.local/state/nix/profiles
+          fi
+        '') (builtins.attrNames registry));
+      };
+    }
+
+    (lib.mkIf anyZsh { programs.zsh.enable = true; })
+  ] ++ lib.mapAttrsToList mkOne registry);
 }

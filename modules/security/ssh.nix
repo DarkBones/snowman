@@ -1,4 +1,4 @@
-{ ... }: {
+{ lib, ... }: {
   services.openssh = {
     enable = true;
 
@@ -28,5 +28,6 @@
     ];
   };
 
-  users.users.root.openssh.authorizedKeys.keys = [ ];
+  users.users.root.openssh.authorizedKeys.keys =
+    [ (builtins.readFile ../../users/keys/bas.pub) ];
 }

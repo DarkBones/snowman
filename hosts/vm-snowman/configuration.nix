@@ -5,6 +5,8 @@
     ./users.nix
   ];
 
+  snowman.bootstrap.enable = false;
+
   networking.hostName = "vm-snowman";
 
   boot.loader.grub.enable = true;

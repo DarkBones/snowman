@@ -1,5 +1,5 @@
 { lib, ... }:
-let users = builtins.attrNames (import ../../users/registry.nix);
+let users = builtins.attrNames (import ../../users/default.nix);
 in {
   networking.firewall = {
     enable = true;

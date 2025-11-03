@@ -1,13 +1,18 @@
-{ ... }: {
+{ lib, ... }: {
   snowman.base.present = true;
-  imports = [ ./security/ssh.nix ./security/hardening-min.nix ];
+  imports = [
+    ./security/ssh.nix
+    ./security/hardening-min.nix
+    ./secrets/dotfiles-key.nix
+    ../modules/bootstrap.nix
+  ];
 
   home-manager.useGlobalPkgs = true;
   home-manager.useUserPackages = true;
 
   time.timeZone = "Europe/Berlin";
   nixpkgs.config.allowUnfree = true;
-  users.mutableUsers = false;
+  users.mutableUsers = lib.mkDefault false;
 
   security.sudo.extraConfig = ''
     Defaults !tty_tickets

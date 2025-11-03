@@ -15,7 +15,7 @@ in {
 
     programs.home-manager.enable = true;
 
-    home.packages = with pkgs; [ tree lazygit ] ++ cfg.extraPackages;
+    home.packages = with pkgs; [ tree lazygit openssh ] ++ cfg.extraPackages;
 
     home.activation.installDotfilesKey =
       lib.hm.dag.entryAfter [ "writeBoundary" ] ''

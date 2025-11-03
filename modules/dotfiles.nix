@@ -43,6 +43,8 @@ in {
         BR=${cfg.branch}
         DIR=${cfg.dir}
 
+        export PATH="${pkgs.openssh}/bin:$PATH"
+
         # Define the path to git
         git="${pkgs.git}/bin/git"
 
