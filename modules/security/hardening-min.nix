@@ -1,13 +1,15 @@
-{ lib, ... }:
-let users = builtins.attrNames (import ../../users/default.nix);
+{ lib, config, ... }:
+let
+  inBootstrap = config.snowman.bootstrap.enable or false;
+  users = builtins.attrNames (import ../../users/default.nix);
 in {
   networking.firewall = {
     enable = true;
     allowedTCPPorts = [ 22 ];
-    logRefusedConnections = true; # TODO: Notify user on new refused attempts
+    logRefusedConnections = true;
   };
 
-  services.openssh.settings = {
+  services.openssh.settings = lib.mkIf (!inBootstrap) {
     MaxAuthTries = 3;
     LoginGraceTime = "30s";
     AllowUsers = users;

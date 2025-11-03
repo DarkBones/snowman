@@ -1,4 +1,6 @@
-{ lib, ... }: {
+{ lib, config, ... }:
+let inBootstrap = config.snowman.bootstrap.enable or false;
+in {
   services.openssh = {
     enable = true;
 
@@ -14,23 +16,9 @@
       ClientAliveCountMax = 2;
       LogLevel = "VERBOSE";
     };
-
-    hostKeys = [
-      {
-        path = "/etc/ssh/ssh_host_ed25519_key";
-        type = "ed25519";
-      }
-      {
-        path = "/etc/ssh/ssh_host_rsa_key";
-        type = "rsa";
-        bits = 4096;
-      }
-    ];
   };
 
-  # TOFIX
-  # ⚠️ Bootstrap parachute: root SSH enabled for initial bring-up only.
-  # Remove after confirming user SSH works reliably.
+  # Root SSH parachute ONLY during bootstrap
   users.users.root.openssh.authorizedKeys.keys =
-    [ (builtins.readFile ../../users/keys/bas.pub) ];
+    lib.mkIf inBootstrap [ (builtins.readFile ../../users/keys/bas.pub) ];
 }
