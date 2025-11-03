@@ -28,6 +28,9 @@
     ];
   };
 
+  # TOFIX
+  # ⚠️ Bootstrap parachute: root SSH enabled for initial bring-up only.
+  # Remove after confirming user SSH works reliably.
   users.users.root.openssh.authorizedKeys.keys =
     [ (builtins.readFile ../../users/keys/bas.pub) ];
 }

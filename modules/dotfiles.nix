@@ -50,7 +50,7 @@ in {
 
         if [ ! -d "$DIR/.git" ]; then
           mkdir -p "$DIR"
-          $git clone --no-checkout "$REPO" "$DIR"
+          $git clone --filter=blob:none --no-checkout "$REPO" "$DIR"
           $git -C "$DIR/" sparse-checkout init --cone
           
           # FIX: Use modern sparse-checkout set syntax
@@ -66,7 +66,7 @@ in {
           $git -C "$DIR" sparse-checkout set ${lib.escapeShellArgs cfg.sparse}
         fi
 
-        $git -C "$DIR" config --global --add safe.directory "$DIR" || true
+        $git -C "$DIR" config --global --replace-all safe.directory "$DIR" || true
 
         # Link requested items
         ${lib.concatStringsSep "\n" (lib.mapAttrsToList linkOne cfg.linkMap)}

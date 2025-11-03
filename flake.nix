@@ -68,5 +68,10 @@
         type = "app";
         program = "${drv}/bin/deploy-vm";
       };
+
+      formatter = nixpkgs.lib.genAttrs [ "x86_64-linux" "aarch64-darwin" ]
+        (system:
+          let pkgs = import nixpkgs { inherit system; };
+          in pkgs.nixpkgs-fmt);
     };
 }
