@@ -2,7 +2,10 @@
   snowman.base.present = true;
   imports = [
     ./security/ssh.nix
+    ./security/ssh-crypto.nix
     ./security/hardening-min.nix
+    ./security/hardening-kernel.nix
+    ./security/lsm.nix
     ./secrets/dotfiles-key.nix
     ../modules/bootstrap.nix
   ];
