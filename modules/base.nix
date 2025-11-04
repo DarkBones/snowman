@@ -32,4 +32,18 @@
   environment.etc."ssh/ssh_known_hosts".text = ''
     github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
   '';
+
+  nix.gc = {
+    automatic = true;
+    dates = "weekly";
+    options = "--delete-older-than 14d";
+  };
+  nix.optimise.automatic = true;
+
+  services.journald.extraConfig = ''
+    SystemMaxUse=200M
+    RuntimeMaxUse=100M
+  '';
+
+  boot.tmp.cleanOnBoot = true;
 }

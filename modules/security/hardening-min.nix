@@ -24,7 +24,7 @@ in {
       enabled = true;
       backend = "systemd";
       port = "ssh";
-      banaction = "iptables-multiport";
+      banaction = "nftables-multiport";
       maxretry = 4;
       findtime = "10m";
       bantime = "1h";
