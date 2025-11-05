@@ -1,7 +1,12 @@
 { lib, config, ... }:
 let
   inBootstrap = config.snowman.bootstrap.enable or false;
-  users = builtins.attrNames (import ../../users/default.nix);
+  invUsers = if (config ? snowman) && (config.snowman ? inventory)
+  && (config.snowman.inventory ? users) then
+    config.snowman.inventory.users
+  else
+    import ../../users/default.nix;
+  users = builtins.attrNames invUsers;
 in {
   networking.firewall = {
     enable = true;

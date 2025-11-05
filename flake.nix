@@ -10,23 +10,26 @@
 
   outputs = { self, nixpkgs, home-manager, agenix, ... }:
     let
-      release = "25.05";
-      systems = { vm-snowman = "x86_64-linux"; };
-      mkHost = name:
+      inv = import ./inventory.nix;
+      mkHost = name: attrs:
         nixpkgs.lib.nixosSystem {
-          system = systems.${name};
-          specialArgs = { inherit home-manager release; };
+          system = attrs.system;
+          specialArgs = {
+            inherit home-manager;
+            release = inv.release;
+            snowmanInventory = inv;
+          };
           modules = [
             agenix.nixosModules.default
             ./modules/guard/base-required.nix
             home-manager.nixosModules.home-manager
             ./modules/base.nix
             ./hosts/${name}/configuration.nix
+            (import ./modules/host-profile.nix { inherit name attrs; })
           ];
         };
     in {
-      nixosConfigurations.vm-snowman = mkHost
-        "vm-snowman"; # TODO: Place in easy to configure location and import
+      nixosConfigurations = nixpkgs.lib.mapAttrs mkHost inv.hosts;
 
       apps.x86_64-linux.deploy-vm = let
         pkgs = import nixpkgs { system = "x86_64-linux"; };
