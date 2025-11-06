@@ -3,6 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     home-manager.url = "github:nix-community/home-manager/release-25.05";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     disko.url = "github:nix-community/disko";
@@ -10,15 +11,21 @@
     agenix.url = "github:ryantm/agenix";
   };
 
-  outputs = { self, nixpkgs, home-manager, disko, agenix, ... }:
+  outputs =
+    { self, nixpkgs, nixpkgs-unstable, home-manager, disko, agenix, ... }:
     let
       inv = import ./inventory.nix;
 
       mkHost = name: attrs:
-        nixpkgs.lib.nixosSystem {
+        let
+          pkgsUnstable = import nixpkgs-unstable {
+            system = attrs.system;
+            config = { allowUnfree = true; };
+          };
+        in nixpkgs.lib.nixosSystem {
           system = attrs.system;
           specialArgs = {
-            inherit home-manager inv;
+            inherit home-manager inv pkgsUnstable;
             currentHost = name;
           };
           modules = [
