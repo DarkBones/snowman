@@ -1,4 +1,4 @@
-{ inv, lib, pkgs, currentHost, options, ... }:
+{ inv, lib, pkgs, currentHost, options, config, ... }:
 let
   hostUsers = inv.hosts.${currentHost}.users;
   users = lib.filterAttrs (k: v: lib.elem k hostUsers) inv.users;
@@ -43,18 +43,50 @@ in {
       (lib.filter (v: lib.isString v && lib.hasPrefix "/" v)
         (map (u: u.shell or "bash") (builtins.attrValues users)));
   }] ++ enableFragments ++ [
-    (lib.mkMerge (lib.mapAttrsToList (name: u: {
-      users.users.${name} = {
+    {
+      users.users = lib.mapAttrs (name: u: {
         isNormalUser = true;
         uid = u.uid;
         group = name;
         extraGroups = u.groups or [ ];
         shell = toShell (u.shell or "bash");
         openssh.authorizedKeys.keys = keysFor u;
-      } // (lib.optionalAttrs (u ? initialPassword) {
-        initialPassword = u.initialPassword;
-      });
-    }) users))
+      }) users;
+    }
+
+    (lib.mkMerge (lib.mapAttrsToList (name: u:
+      let
+        hasSecret = u ? passwordSecret;
+        hasInitial = u ? initialPassword;
+      in lib.mkMerge [
+        (lib.optionalAttrs hasSecret {
+          age.secrets."${name}-password".file = u.passwordSecret;
+        })
+
+        (lib.optionalAttrs hasSecret {
+          users.users.${name}.hashedPasswordFile =
+            config.age.secrets."${name}-password".path;
+        } // lib.optionalAttrs (!hasSecret && hasInitial) {
+          users.users.${name}.initialPassword = u.initialPassword;
+        })
+
+        {
+          assertions = [
+            {
+              assertion = !(hasSecret && hasInitial);
+              message =
+                "Inventory: user ${name} sets BOTH passwordSecret and initialPassword.";
+            }
+            {
+              assertion =
+                config.services.openssh.settings.PasswordAuthentication == false
+                || hasSecret || hasInitial;
+              message =
+                "SSH allows passwords but ${name} has neither passwordSecret nor initialPassword.";
+            }
+          ];
+        }
+      ]) users))
     {
       assertions = [
         {

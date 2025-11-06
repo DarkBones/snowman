@@ -28,9 +28,5 @@
             ./modules
           ];
         };
-    in {
-      nixosConfigurations = nixpkgs.lib.mapAttrs mkHost inv.hosts;
-
-      age.identityPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
-    };
+    in { nixosConfigurations = nixpkgs.lib.mapAttrs mkHost inv.hosts; };
 }

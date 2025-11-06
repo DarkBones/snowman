@@ -25,8 +25,8 @@
       groups = [ "wheel" ];
       shell = "zsh";
       sshPubKeyFile = ./users/keys/bas.pub; # TODO: Key management
-      initialPassword = "changeme";
-      passwordSecret = ./secrets/bas-password.age; # TODO: Implement later as an optional
+      # initialPassword = "changeme";
+      passwordSecret = ./secrets/admin-password.age;
       roles = {
         dev.enable = true;
         dotfiles = {
