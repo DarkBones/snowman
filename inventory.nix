@@ -18,14 +18,13 @@
     };
     # macs later via nix-darwin
   };
-
   users = {
     bas = {
       uid = 1000;
       groups = [ "wheel" ];
       shell = "zsh";
-      sshPubKeyFile = ./users/keys/bas.pub;
-      passwordSecret = ./secrets/bas-password.age;
+      sshPubKeyFile = ./users/keys/bas.pub; # TODO: Key management
+      # passwordSecret = ./secrets/bas-password.age; # TODO: Implement later as an optional
       roles = {
         dev.enable = true;
         dotfiles = {

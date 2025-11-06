@@ -16,7 +16,10 @@
       mkHost = name: attrs:
         nixpkgs.lib.nixosSystem {
           system = attrs.system;
-          specialArgs = { inherit home-manager inv; };
+          specialArgs = {
+            inherit home-manager inv;
+            currentHost = name;
+          };
           modules = [
             home-manager.nixosModules.home-manager
             disko.nixosModules.disko
