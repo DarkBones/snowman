@@ -34,7 +34,6 @@ in {
       MaxStartups = "10:30:100";
       AuthenticationMethods = "publickey";
       AllowUsers = allowed;
-      # Firewall # <- How?
     };
   };
 }
