@@ -4,8 +4,16 @@
   hosts = {
     vm-snowman = {
       system = "x86_64-linux";
-      hardware = "qemu"; # qemu | laptop | server
-      hostname = "vm-snowman";
+      hostname = "vm-snowman"; # Optional, defaults to hosts.[name]
+      hardware = {
+        boot = { firmware = "bios"; }; # "bios" | "efi"
+        disk = { device = "/dev/vda"; }; # VM disk
+        fs = {
+          type = "btrfs";
+          rootLabel = "nixos";
+          swapGiB = 0;
+        };
+      };
       users = [ "bas" ];
     };
     # macs later via nix-darwin
