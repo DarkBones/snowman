@@ -5,6 +5,7 @@
     vm-snowman = {
       system = "x86_64-linux";
       hostname = "vm-snowman"; # Optional, defaults to hosts.[name]
+      provision.disk.enable = false;
       # useDHCP = true; # Default if omitted
       hardware = {
         boot = { firmware = "bios"; }; # "bios" | "efi"
@@ -29,11 +30,11 @@
       passwordSecret = ./secrets/admin-password.age;
       roles = {
         dev.enable = true;
-        dotfiles = {
-          enable = true;
-          linkMap = { ".config/nvim" = "nvim/.config/nvim"; };
-          sparse = [ "nvim" ];
-        };
+        # dotfiles = {
+        #   enable = true;
+        #   linkMap = { ".config/nvim" = "nvim/.config/nvim"; };
+        #   sparse = [ "nvim" ];
+        # };
       };
     };
   };

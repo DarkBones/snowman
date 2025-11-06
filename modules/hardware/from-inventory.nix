@@ -42,7 +42,7 @@ in {
     efiSysMountPoint = "/boot";
   };
 
-  disko.devices.disk.main = {
+  disko.devices.disk.main = lib.mkIf host.provision.disk.enable {
     type = "disk";
     device = host.hardware.disk.device;
     content = {
