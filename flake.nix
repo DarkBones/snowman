@@ -7,9 +7,10 @@
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     disko.url = "github:nix-community/disko";
     nixos-hardware.url = "github:NixOS/nixos-hardware";
+    agenix.url = "github:ryantm/agenix";
   };
 
-  outputs = { self, nixpkgs, home-manager, disko, ... }:
+  outputs = { self, nixpkgs, home-manager, disko, agenix, ... }:
     let
       inv = import ./inventory.nix;
 
@@ -23,8 +24,13 @@
           modules = [
             home-manager.nixosModules.home-manager
             disko.nixosModules.disko
+            agenix.nixosModules.default
             ./modules
           ];
         };
-    in { nixosConfigurations = nixpkgs.lib.mapAttrs mkHost inv.hosts; };
+    in {
+      nixosConfigurations = nixpkgs.lib.mapAttrs mkHost inv.hosts;
+
+      age.identityPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
+    };
 }

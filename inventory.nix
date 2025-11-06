@@ -26,7 +26,7 @@
       shell = "zsh";
       sshPubKeyFile = ./users/keys/bas.pub; # TODO: Key management
       initialPassword = "changeme";
-      # passwordSecret = ./secrets/bas-password.age; # TODO: Implement later as an optional
+      passwordSecret = ./secrets/bas-password.age; # TODO: Implement later as an optional
       roles = {
         dev.enable = true;
         dotfiles = {
