@@ -5,6 +5,7 @@
     vm-snowman = {
       system = "x86_64-linux";
       hostname = "vm-snowman"; # Optional, defaults to hosts.[name]
+      # useDHCP = true; # Default if omitted
       hardware = {
         boot = { firmware = "bios"; }; # "bios" | "efi"
         disk = { device = "/dev/vda"; }; # VM disk
@@ -24,6 +25,7 @@
       groups = [ "wheel" ];
       shell = "zsh";
       sshPubKeyFile = ./users/keys/bas.pub; # TODO: Key management
+      initialPassword = "changeme";
       # passwordSecret = ./secrets/bas-password.age; # TODO: Implement later as an optional
       roles = {
         dev.enable = true;

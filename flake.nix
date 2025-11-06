@@ -23,8 +23,7 @@
           modules = [
             home-manager.nixosModules.home-manager
             disko.nixosModules.disko
-            ./modules/hardware/from-inventory.nix
-            ./modules/users/from-inventory.nix
+            ./modules
           ];
         };
     in { nixosConfigurations = nixpkgs.lib.mapAttrs mkHost inv.hosts; };

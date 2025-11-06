@@ -9,6 +9,7 @@ let
       espSz = attrs.hardware.boot.espSize or "512MiB";
     in {
       networking.hostName = attrs.hostname or name;
+      networking.useDHCP = attrs.useDHCP or true;
       system.stateVersion = inv.release;
 
       # Bootloader
