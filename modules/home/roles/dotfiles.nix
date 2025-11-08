@@ -56,29 +56,47 @@ in {
 
       mkdir -p "$DIR"
 
-      if [ ! -d "$DIR/.git" ]; then
-        echo "[dotfiles] Cloning $REPO into $DIR"
-        $git clone --filter=blob:none --no-checkout "$REPO" "$DIR"
-        $git -C "$DIR" sparse-checkout init --cone
-
-        if [ ${toString (cfg.sparse != [ ])} = "1" ]; then
-          $git -C "$DIR" sparse-checkout set ${lib.escapeShellArgs cfg.sparse}
+      update_repo() {
+        if [ ! -d "$DIR/.git" ]; then
+          echo "[dotfiles] Cloning $REPO into $DIR"
+          "$git" clone --filter=blob:none --no-checkout "$REPO" "$DIR"
+          "$git" -C "$DIR" sparse-checkout init --cone
+        else
+          echo "[dotfiles] Updating repo in $DIR"
+          "$git" -C "$DIR" fetch --prune
         fi
 
-        $git -C "$DIR" checkout "$BRANCH" || true
-      else
-        echo "[dotfiles] Updating repo in $DIR"
-        $git -C "$DIR" fetch --prune || true
-        $git -C "$DIR" switch "$BRANCH" || true
-        $git -C "$DIR" pull --ff-only || true
-
+        # Configure sparse checkout if requested
         if [ ${toString (cfg.sparse != [ ])} = "1" ]; then
-          $git -C "$DIR" sparse-checkout set ${lib.escapeShellArgs cfg.sparse}
+          "$git" -C "$DIR" sparse-checkout set ${lib.escapeShellArgs cfg.sparse}
         fi
+
+        # Ensure branch exists and is up to date (best effort)
+        "$git" -C "$DIR" switch "$BRANCH" || \
+          "$git" -C "$DIR" checkout -b "$BRANCH" "origin/$BRANCH" || true
+
+        "$git" -C "$DIR" pull --ff-only || true
+      }
+
+      # Run update_repo in "non-fatal" mode
+      set +e
+      update_repo
+      status=$?
+      set -e
+
+      if [ "$status" -ne 0 ]; then
+        echo "[dotfiles] WARNING: failed to sync repo (auth/network issue?). Skipping dotfiles."
       fi
 
-      # symlink from linkMap
+      # If it's still not a git repo, bail out without error
+      if [ ! -d "$DIR/.git" ]; then
+        echo "[dotfiles] WARNING: $DIR is not a git repo; skipping link step."
+        exit 0
+      fi
+
       DIR_REAL="$DIR"
+
+      # Symlink targets from linkMap
       ${lib.concatStringsSep "\n" (lib.mapAttrsToList (target: src: ''
         echo "[dotfiles] Linking ${target} -> ${src}"
         mkdir -p "$(dirname "$HOME/${target}")"
