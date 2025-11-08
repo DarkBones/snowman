@@ -34,13 +34,15 @@
       roles = {
         dev.enable = true;
         ssh.enable = true;
-        # dotfiles = {
-        #   enable = true;
-        #   url = "github-dotfiles:DarkBones/dotfiles.git";
-        #   deployKeySecret = ./secrets/dotfiles-bas.age; # TODO: Later
-        #   # linkMap = { ".config/nvim" = "nvim/.config/nvim"; }; # TODO: Later
-        #   # sparse = [ "nvim" ]; # TODO: Later
-        # };
+        dotfiles = {
+          enable = true;
+          repo = "git@github.com:DarkBones/.dotfiles.git";
+          dir = "Developer/dotfiles";
+          branch = "main";
+          sparse = [ "nvim" ];
+          # deployKeySecret = ./secrets/dotfiles-bas.age;
+          linkMap = { ".config/nvim" = "nvim/.config/nvim"; };
+        };
       };
     };
   };
