@@ -1,13 +1,13 @@
 { inv, currentHost, lib, ... }:
 let
-  assertHost = builtins.hasAttr currentHost inv.hosts;
-  hostUsers = if assertHost then inv.hosts.${currentHost}.users else [ ];
+  hasHost = builtins.hasAttr currentHost inv.hosts;
+  hostUsers = if hasHost then inv.hosts.${currentHost}.users else [ ];
   selected =
     lib.filterAttrs (n: u: lib.elem n hostUsers && (u.homeManaged or false))
     inv.users;
 in {
   assertions = [{
-    assertion = assertHost;
+    assertion = hasHost;
     message = "Inventory: host ${currentHost} not found in inv.hosts";
   }];
 

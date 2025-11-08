@@ -26,9 +26,10 @@
       homeManaged = true;
       groups = [ "wheel" ];
       shell = "zsh";
-      sshPubKeyFile = ./users/keys/bas-arch.pub; # TODO: Key management
-      initialPassword = "changeme";
-      # passwordSecret = ./secrets/admin-password.age;
+      sshPubKeys = [ (builtins.readFile ./users/keys/bas-arch.pub) ];
+      # initialPassword = "changeme"; # default plain text password
+      passwordSecret =
+        ./secrets/admin-password.age; # set real password on build
       roles = {
         dev.enable = true;
         # dotfiles = {
