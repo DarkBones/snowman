@@ -26,7 +26,7 @@
       homeManaged = true;
       groups = [ "wheel" ];
       shell = "zsh";
-      sshPubKeyFile = ./users/keys/bas.pub; # TODO: Key management
+      sshPubKeyFile = ./users/keys/bas-arch.pub; # TODO: Key management
       initialPassword = "changeme";
       # passwordSecret = ./secrets/admin-password.age;
       roles = {
