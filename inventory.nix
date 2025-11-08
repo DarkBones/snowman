@@ -4,6 +4,7 @@
   hosts = {
     vm-snowman = {
       system = "x86_64-linux";
+      # mutableUsers = true # Default if omitted
       hostname = "vm-snowman"; # Optional, defaults to hosts.[name]
       provision.disk.enable = false;
       # useDHCP = true; # Default if omitted

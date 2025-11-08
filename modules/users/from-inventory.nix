@@ -1,8 +1,11 @@
 { inv, lib, pkgs, currentHost, options, config, ... }:
 let
-  hostUsers = inv.hosts.${currentHost}.users;
+  hasHost = builtins.hasAttr currentHost inv.hosts;
+  hostUsers = if hasHost then inv.hosts.${currentHost}.users else [ ];
+
   users = lib.filterAttrs (k: v: lib.elem k hostUsers) inv.users;
   declaredUserNames = builtins.attrNames inv.users;
+
   unknownUsers = lib.subtractLists declaredUserNames hostUsers;
 
   shellStrs =
@@ -38,7 +41,8 @@ let
 in {
   config = lib.mkMerge ([{
     users.groups = lib.genAttrs (builtins.attrNames users) (_: { });
-    users.mutableUsers = true;
+    users.mutableUsers =
+      if hasHost then inv.hosts.${currentHost}.mutableUsers or true else false;
     environment.shells = shellPkgs ++ lib.unique
       (lib.filter (v: lib.isString v && lib.hasPrefix "/" v)
         (map (u: u.shell or "bash") (builtins.attrValues users)));
@@ -90,7 +94,7 @@ in {
     {
       assertions = [
         {
-          assertion = builtins.hasAttr currentHost inv.hosts;
+          assertion = hasHost;
           message = "Inventory: host ${currentHost} not found in inv.hosts";
         }
         {
