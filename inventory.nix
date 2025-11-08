@@ -33,11 +33,13 @@
         ./secrets/admin-password.age; # set real password on build
       roles = {
         dev.enable = true;
-        # dotfiles = {
-        #   enable = true;
-        #   linkMap = { ".config/nvim" = "nvim/.config/nvim"; };
-        #   sparse = [ "nvim" ];
-        # };
+        dotfiles = {
+          enable = true;
+          url = "github-dotfiles:DarkBones/dotfiles.git";
+          deployKeySecret = ./secrets/dotfiles-bas.age; # TODO: Later
+          # linkMap = { ".config/nvim" = "nvim/.config/nvim"; }; # TODO: Later
+          # sparse = [ "nvim" ]; # TODO: Later
+        };
       };
     };
   };
