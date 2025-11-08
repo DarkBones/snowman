@@ -33,6 +33,7 @@
         ./secrets/admin-password.age; # set real password on build
       roles = {
         dev.enable = true;
+        ssh.enable = true;
         # dotfiles = {
         #   enable = true;
         #   url = "github-dotfiles:DarkBones/dotfiles.git";

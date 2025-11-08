@@ -34,7 +34,8 @@ let
 
       # EFI -> pick loader
       boot.loader.systemd-boot.enable =
-        lib.mkIf (fw == "efi" && loader == "systemd-boot") true;
+        (fw == "efi" && loader == "systemd-boot");
+
       boot.loader.efi = lib.mkIf (fw == "efi") {
         canTouchEfiVariables = true;
         efiSysMountPoint = "/boot";

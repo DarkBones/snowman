@@ -1,1 +1,1 @@
-{ ... }: { imports = [ ./roles/dev.nix ]; }
+{ ... }: { imports = [ ./roles/dev.nix ./roles/ssh.nix ]; }

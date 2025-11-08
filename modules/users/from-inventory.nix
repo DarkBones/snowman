@@ -6,6 +6,7 @@ let
   users = lib.filterAttrs (k: v: lib.elem k hostUsers) inv.users;
   declaredUserNames = builtins.attrNames inv.users;
 
+  # YES, This is the correct order. The doccumentation is wrong.
   unknownUsers = lib.subtractLists declaredUserNames hostUsers;
 
   shellStrs =
