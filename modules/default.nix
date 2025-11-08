@@ -6,6 +6,7 @@
     ./users/from-inventory.nix
     ./secrets/agenix.nix
     ./security.nix
+    ./nix.nix
     ./home/from-inventory.nix
   ];
   home-manager.extraSpecialArgs = { inherit pkgsUnstable; };

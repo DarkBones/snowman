@@ -18,6 +18,14 @@
         };
       };
       users = [ "bas" ];
+
+      bootstrap.usb = {
+        enable = true;
+        label = "SNOWMANKEY";
+        path = "/mnt/snowman";
+        keyFile = "snowman.key";
+        fsType = "vfat";
+      };
     };
     # macs later via nix-darwin
   };
