@@ -1,3 +1,4 @@
+# TODO: Make configurable
 {
   "secrets/admin-password.age".publicKeys = [
     # VM host key:
