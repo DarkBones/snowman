@@ -23,11 +23,12 @@
   users = {
     bas = {
       uid = 1000;
+      homeManaged = true;
       groups = [ "wheel" ];
       shell = "zsh";
       sshPubKeyFile = ./users/keys/bas.pub; # TODO: Key management
-      # initialPassword = "changeme";
-      passwordSecret = ./secrets/admin-password.age;
+      initialPassword = "changeme";
+      # passwordSecret = ./secrets/admin-password.age;
       roles = {
         dev.enable = true;
         # dotfiles = {

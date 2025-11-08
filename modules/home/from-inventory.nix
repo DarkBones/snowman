@@ -2,7 +2,9 @@
 let
   assertHost = builtins.hasAttr currentHost inv.hosts;
   hostUsers = if assertHost then inv.hosts.${currentHost}.users else [ ];
-  selected = lib.filterAttrs (n: _: lib.elem n hostUsers) inv.users;
+  selected =
+    lib.filterAttrs (n: u: lib.elem n hostUsers && (u.homeManaged or false))
+    inv.users;
 in {
   assertions = [{
     assertion = assertHost;
@@ -15,6 +17,7 @@ in {
     home.homeDirectory = "/home/${name}";
     home.stateVersion = inv.release;
     programs.home-manager.enable = true;
+    systemd.user.startServices = false;
     roles = selected.${name}.roles or { };
   });
 }
