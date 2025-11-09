@@ -10,6 +10,7 @@ in {
       cowsay
       pnpm
       docker
+      gcc
     ];
   };
 }

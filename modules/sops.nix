@@ -14,8 +14,8 @@ let
 
   generateKeyFlag = !usbCfg.enable;
 
-  usersWithSecrets = lib.filterAttrs
-    (name: u: lib.elem name hostUsers && (u.sopsSecretsFile or null) != null)
+  usersWithSecrets =
+    lib.filterAttrs (name: u: lib.elem name hostUsers && (u ? sopsSecretsFile))
     inv.users;
 
   mkSecretsForUser = userName:
@@ -29,8 +29,8 @@ let
         inherit sopsFile;
         format = "yaml";
         key = key;
-        owner = config.users.users.${userName}.name;
-        inherit (config.users.users.${userName}) group;
+        owner = userName;
+        group = userName;
         mode = "0400";
       };
     }) secretKeys);
