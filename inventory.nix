@@ -38,13 +38,13 @@
       sshPubKeys = [ (builtins.readFile ./users/keys/bas-arch.pub) ];
 
       sopsSecretsFile = ./users/secrets/bas_secrets.yml;
-      sopsSecretKeys = [ "password" "test" ];
+      sopsSecretKeys = [ "password_hash" "test" ];
 
       envFile = ./users/env/bas.nix;
 
       # initialPassword = "changeme"; # default plain text password
       sopsPasswordKey =
-        "password"; # <- The secret key used for initializing the user's password (must be one of the `sopSecretKeys`)
+        "password_hash"; # <- The secret key used for initializing the user's password (must be one of the `sopSecretKeys`)
 
       roles = {
         dev.enable = true;
