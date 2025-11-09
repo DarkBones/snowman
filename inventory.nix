@@ -55,8 +55,8 @@
           branch = "main";
           sparse = [ "nvim" ];
           linkMap = { ".config/nvim" = "nvim/.config/nvim"; };
-          deployTokenKey =
-            "dotfiles_deploy_key"; # TODO: Wire this secret key path to get the READ-ONLY deploy key for private dotfiles
+          # deployTokenKey =
+          #   "dotfiles_deploy_key"; # TODO: Wire this secret key path to get the READ-ONLY deploy key for private dotfiles
         };
       };
     };
