@@ -48,31 +48,32 @@ in {
 
       git="${pkgs.git}/bin/git"
 
-      mkdir -p "$DIR"
+      # Work in $HOME/<dir>
+      DIR_REAL="$HOME/$DIR"
+      mkdir -p "$DIR_REAL"
 
       update_repo() {
-        if [ ! -d "$DIR/.git" ]; then
-          echo "[dotfiles] Cloning $REPO into $DIR"
-          "$git" clone --filter=blob:none --no-checkout "$REPO" "$DIR"
-          "$git" -C "$DIR" sparse-checkout init --cone
+        if [ ! -d "$DIR_REAL/.git" ]; then
+          echo "[dotfiles] Cloning $REPO into $DIR_REAL"
+          "$git" clone --filter=blob:none --no-checkout "$REPO" "$DIR_REAL"
+          "$git" -C "$DIR_REAL" sparse-checkout init --cone
         else
-          echo "[dotfiles] Updating repo in $DIR"
-          "$git" -C "$DIR" fetch --prune
+          echo "[dotfiles] Updating repo in $DIR_REAL"
+          "$git" -C "$DIR_REAL" fetch --prune
         fi
 
-        # Configure sparse checkout if requested
         if [ ${toString (cfg.sparse != [ ])} = "1" ]; then
-          "$git" -C "$DIR" sparse-checkout set ${lib.escapeShellArgs cfg.sparse}
+          "$git" -C "$DIR_REAL" sparse-checkout set ${
+            lib.escapeShellArgs cfg.sparse
+          }
         fi
 
-        # Ensure branch exists and is up to date (best effort)
-        "$git" -C "$DIR" switch "$BRANCH" || \
-          "$git" -C "$DIR" checkout -b "$BRANCH" "origin/$BRANCH" || true
+        "$git" -C "$DIR_REAL" switch "$BRANCH" || \
+          "$git" -C "$DIR_REAL" checkout -b "$BRANCH" "origin/$BRANCH" || true
 
-        "$git" -C "$DIR" pull --ff-only || true
+        "$git" -C "$DIR_REAL" pull --ff-only || true
       }
 
-      # Run update_repo in "non-fatal" mode
       set +e
       update_repo
       status=$?
@@ -82,13 +83,10 @@ in {
         echo "[dotfiles] WARNING: failed to sync repo (auth/network issue?). Skipping dotfiles."
       fi
 
-      # If it's still not a git repo, bail out without error
-      if [ ! -d "$DIR/.git" ]; then
-        echo "[dotfiles] WARNING: $DIR is not a git repo; skipping link step."
+      if [ ! -d "$DIR_REAL/.git" ]; then
+        echo "[dotfiles] WARNING: $DIR_REAL is not a git repo; skipping link step."
         exit 0
       fi
-
-      DIR_REAL="$DIR"
 
       # Symlink targets from linkMap
       ${lib.concatStringsSep "\n" (lib.mapAttrsToList (target: src: ''
