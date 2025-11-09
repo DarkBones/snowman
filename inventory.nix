@@ -38,7 +38,7 @@
       sshPubKeys = [ (builtins.readFile ./users/keys/bas-arch.pub) ];
 
       sopsSecretsFile = ./users/secrets/bas_secrets.yml;
-      sopsSecretKeys = [ "password" "password_test" ];
+      sopsSecretKeys = [ "password" ];
 
       # initialPassword = "changeme"; # default plain text password
       sopsPasswordKey =
@@ -54,7 +54,6 @@
           dir = "Developer/dotfiles";
           branch = "main";
           sparse = [ "nvim" ];
-          # deployKeySecret = ./secrets/dotfiles-bas.age;
           linkMap = { ".config/nvim" = "nvim/.config/nvim"; };
         };
       };

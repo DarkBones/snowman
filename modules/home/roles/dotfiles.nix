@@ -32,12 +32,6 @@ in {
       default = { };
       description = "Map: $HOME/<target> -> <path inside repo>.";
     };
-
-    deployKeySecret = lib.mkOption {
-      type = lib.types.nullOr lib.types.path;
-      default = null;
-      description = "Optional age-encrypted deploy key for private repos.";
-    };
   };
 
   config = lib.mkIf cfg.enable {
