@@ -6,5 +6,5 @@
     ./roles/secrets.nix
   ];
 
-  config = { home.packages = with pkgsUnstable; [ neofetch ]; };
+  # config = { home.packages = with pkgsUnstable; [ neofetch ]; };
 }
