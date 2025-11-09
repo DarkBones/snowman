@@ -1,6 +1,7 @@
 # BEFORE RELEASE CHECKLIST
 
 - [ ] Convert all existing encrypted secrets with bogus values
+- [ ] Create kill-switch in case key is leaked
 
 # Snowman – minimal spine
 

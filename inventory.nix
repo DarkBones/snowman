@@ -38,7 +38,9 @@
       sshPubKeys = [ (builtins.readFile ./users/keys/bas-arch.pub) ];
 
       sopsSecretsFile = ./users/secrets/bas_secrets.yml;
-      sopsSecretKeys = [ "password" ];
+      sopsSecretKeys = [ "password" "test" ];
+
+      envFile = ./users/env/bas.nix;
 
       # initialPassword = "changeme"; # default plain text password
       sopsPasswordKey =
@@ -52,11 +54,15 @@
           enable = true;
           repo = "git@github.com:DarkBones/.dotfiles.git";
           dir = "Developer/dotfiles";
-          branch = "main";
-          sparse = [ "nvim" ];
-          linkMap = { ".config/nvim" = "nvim/.config/nvim"; };
+          branch = "nix"; # TODO: Make `main` default
+          sparse = [ "nvim" "zsh" ];
+          linkMap = {
+            ".config/nvim" = "nvim/.config/nvim";
+            ".zsh" = "zsh/.zsh";
+            ".zshrc" = "zsh/.zshrc";
+          };
           # deployTokenKey =
-          #   "dotfiles_deploy_key"; # TODO: Wire this secret key path to get the READ-ONLY deploy key for private dotfiles
+          #   "dotfiles_deploy_key"; # TODO: Wire this secret key path to get the READ-ONLY deploy key for private dotfiles. Test by removing current ssh key pair on vm
         };
       };
     };
