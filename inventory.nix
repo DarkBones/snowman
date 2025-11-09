@@ -20,7 +20,7 @@
       users = [ "bas" ];
 
       bootstrap.usb = {
-        enable = true;
+        enable = false;
         label = "SNOWMANKEY";
         path = "/mnt/snowman";
         keyFile = "snowman.key";

@@ -13,7 +13,8 @@ in {
       "${usbCfg.path}" = {
         device = "/dev/disk/by-label/${usbCfg.label}";
         fsType = usbCfg.fsType or "vfat";
-        options = [ "nofail" "x-systemd.automount" ];
+        # options = [ "nofail" "x-systemd.automount" ];
+        options = [ "nofail" ];
       };
     };
   };
