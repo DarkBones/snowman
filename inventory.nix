@@ -42,6 +42,7 @@
       roles = {
         dev.enable = true;
         ssh.enable = true;
+        secrets.enable = true;
         dotfiles = {
           enable = true;
           repo = "git@github.com:DarkBones/.dotfiles.git";

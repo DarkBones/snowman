@@ -1,3 +1,4 @@
+# DEPRICATED IN FAVOR OF SOPS
 # TODO: Make configurable
 {
   "secrets/admin-password.age".publicKeys = [
