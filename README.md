@@ -308,7 +308,7 @@ Now the USB contains:
 In `inventory.nix`, under your host:
 
 ```nix
-vm-snowman = {
+dorkbones = {
   # ...
   bootstrap.usb = {
     enable  = true;
@@ -346,8 +346,8 @@ Rough flow:
    # from your dev machine, using remote build:
    nix run nixpkgs#nixos-rebuild -- switch \
      --flake .#dorkbones \
-     --target-host bas@<vm-ip> \
-     --build-host bas@<vm-ip> \
+     --target-host bas@<target-ip> \
+     --build-host bas@<target-ip> \
      --use-remote-sudo
    ```
 
