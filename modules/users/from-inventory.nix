@@ -61,35 +61,34 @@ in {
 
     (lib.mkMerge (lib.mapAttrsToList (name: u:
       let
-        hasSecret = u ? passwordSecret;
         hasInitial = u ? initialPassword;
+        hasSopsPassword = (u ? sopsSecretsFile) && (u ? sopsPasswordKey)
+          && lib.elem u.sopsPasswordKey (u.sopsSecretKeys or [ ]);
+
+        passwordKey = if hasSopsPassword then u.sopsPasswordKey else null;
       in lib.mkMerge [
-        (lib.optionalAttrs hasSecret {
-          age.secrets."${name}-password".file = u.passwordSecret;
+        (lib.optionalAttrs hasSopsPassword {
+          users.users.${name}.hashedPasswordFile =
+            config.sops.secrets.${passwordKey}.path;
         })
 
-        (lib.optionalAttrs hasSecret {
-          # users.users.${name}.hashedPasswordFile =
-          #   config.age.secrets."${name}-password".path;
-          users.users.${name}.hashedPasswordFile =
-            config.sops.secrets.password.path;
-        } // lib.optionalAttrs (!hasSecret && hasInitial) {
+        (lib.optionalAttrs (!hasSopsPassword && hasInitial) {
           users.users.${name}.initialPassword = u.initialPassword;
         })
 
         {
           assertions = [
             {
-              assertion = !(hasSecret && hasInitial);
+              assertion = !(hasSopsPassword && hasInitial);
               message =
-                "Inventory: user ${name} sets BOTH passwordSecret and initialPassword.";
+                "Inventory: user ${name} sets BOTH SOPS password and initialPassword. Choose one.";
             }
             {
               assertion =
                 config.services.openssh.settings.PasswordAuthentication == false
-                || hasSecret || hasInitial;
+                || hasSopsPassword || hasInitial;
               message =
-                "SSH allows passwords but ${name} has neither passwordSecret nor initialPassword.";
+                "SSH allows passwords but ${name} has neither SOPS password nor initialPassword. Configure one.";
             }
           ];
         }

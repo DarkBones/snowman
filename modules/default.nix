@@ -4,8 +4,8 @@
     ./hardware/from-inventory.nix
     ./storage/rootfs-from-inventory.nix
     ./users/from-inventory.nix
-    ./secrets/agenix.nix
-    ./secrets/env.nix
+    # ./secrets/agenix.nix
+    # ./secrets/env.nix
     ./security.nix
     ./nix.nix
     ./sops.nix

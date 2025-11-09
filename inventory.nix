@@ -4,7 +4,7 @@
   hosts = {
     vm-snowman = {
       system = "x86_64-linux";
-      # mutableUsers = true # Default if omitted
+      mutableUsers = false; # Defaults to `true` if omitted
       hostname = "vm-snowman"; # Optional, defaults to hosts.[name]
       provision.disk.enable = false;
       # useDHCP = true; # Default if omitted
@@ -37,12 +37,12 @@
       shell = "zsh";
       sshPubKeys = [ (builtins.readFile ./users/keys/bas-arch.pub) ];
 
-      # initialPassword = "changeme"; # default plain text password
-      passwordSecret =
-        ./secrets/admin-password.age; # set real password on build # TODO: Deprecate
-
       sopsSecretsFile = ./users/secrets/bas_secrets.yml;
-      sopsSecretKeys = [ "password" ];
+      sopsSecretKeys = [ "password" "password_test" ];
+
+      # initialPassword = "changeme"; # default plain text password
+      sopsPasswordKey =
+        "password"; # <- The secret key used for initializing the user's password (must be one of the `sopSecretKeys`)
 
       roles = {
         dev.enable = true;

@@ -1,6 +1,6 @@
 keys:
   - &users:
-    - &bas age1gah8tr5mjzx5hguakmcsay724r84djr00sgtlr264j3x0gwqsfuqqcc0qa
+    - &usb age10z86j26fzxkh64phvsa2nkc5zjdejyesjy4gu2zqmzh8tfknpprq7l3l0k
   - &hosts:
     - &nix-vm age1pel05an6v9sryemdku0rwvsft4ragmtnu5520q3s6tg7svrj7y2snf2y66
     - &arch age1g5kwt7qc59wl4eg9g8vt7wdu9c4xjsz7mnzuhq3uw9fxyy2u6dxs6cxxwz
@@ -9,13 +9,13 @@ creation_rules:
   - path_regex: ^users\/secrets\/.+_secrets\.(yml|yaml)$
     key_groups:
       - age:
-          - *bas
+          - *usb
           - *nix-vm
           - *arch
 
   - path_regex: ^secrets\.(yml|yaml)$
     key_groups:
       - age:
-          - *bas
+          - *usb
           - *nix-vm
           - *arch
