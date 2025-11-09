@@ -41,12 +41,12 @@ let
 
   sopsPasswordKeyAssertions = lib.mapAttrsToList (name: u:
     let
-      keyValid = !(u ? sopsPasswordKey)
-        || lib.elem u.sopsPasswordKey (u.sopsSecretKeys or [ ]);
+      keyValid = !(u ? sopsPasswordHashKey)
+        || lib.elem u.sopsPasswordHashKey (u.sopsSecretKeys or [ ]);
     in {
       assertion = keyValid;
-      message = "User ${name}: sopsPasswordKey '${
-          u.sopsPasswordKey or "«unset»"
+      message = "User ${name}: sopsPasswordHashKey '${
+          u.sopsPasswordHashKey or "«unset»"
         }' not found in sopsSecretKeys (${
           toString (u.sopsSecretKeys or [ ])
         }).";

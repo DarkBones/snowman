@@ -43,7 +43,7 @@
       envFile = ./users/env/bas.nix;
 
       # initialPassword = "changeme"; # default plain text password
-      sopsPasswordKey =
+      sopsPasswordHashKey =
         "password_hash"; # <- The secret key used for initializing the user's password (must be one of the `sopSecretKeys`)
 
       roles = {

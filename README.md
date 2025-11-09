@@ -53,7 +53,7 @@ Example wiring:
   bas = {
     sopsSecretsFile = ./users/secrets/bas_secrets.yml;
     sopsSecretKeys  = [ "password" "some_api_token" ];
-    sopsPasswordKey = "password"; # must appear in sopsSecretKeys
+    sopsPasswordHashKey = "password"; # must appear in sopsSecretKeys
   };
   ```
 
@@ -101,7 +101,7 @@ users = {
 
     sopsSecretsFile = ./users/secrets/bas_secrets.yml;
     sopsSecretKeys  = [ "password" "some_api_token" ];
-    sopsPasswordKey = "password"; # used to set the user's password
+    sopsPasswordHashKey = "password"; # used to set the user's password
 
     roles = {
       dev.enable     = true;
@@ -124,15 +124,15 @@ Meaning:
 
 * `sopsSecretsFile`: which encrypted file to read.
 * `sopsSecretKeys`: which top-level keys in that file to expose.
-* `sopsPasswordKey`: which key from that list is used as the *user’s password*:
+* `sopsPasswordHashKey`: which key from that list is used as the *user’s password*:
 
   * `modules/users/from-inventory.nix` does
     `users.users.<name>.hashedPasswordFile = config.sops.secrets.${passwordKey}.path;`
 * If you **don’t** want to use sops for a password, you can instead set:
 
-  * `initialPassword = "changeme"` and leave `sopsPasswordKey` unset.
+  * `initialPassword = "changeme"` and leave `sopsPasswordHashKey` unset.
 
-There are assertions to catch mistakes, e.g. if `sopsPasswordKey` is not in `sopsSecretKeys`.
+There are assertions to catch mistakes, e.g. if `sopsPasswordHashKey` is not in `sopsSecretKeys`.
 
 ---
 
@@ -400,7 +400,7 @@ At that point the host should decrypt secrets using its own keys, no USB needed.
 | Put `snowman.key` on a USB labeled `SNOWMANKEY` | Portable bootstrap device                      |
 | Set `bootstrap.usb` in `inventory.nix`          | Mounts USB and points `sops.age.keyFile` there |
 | Define `sopsSecretsFile` / `sopsSecretKeys`     | Wire per-user sops secrets into NixOS          |
-| Optionally `sopsPasswordKey` per user           | Use sops-managed secret as the login password  |
+| Optionally `sopsPasswordHashKey` per user       | Use sops-managed secret as the login password  |
 | Bootstrap host with USB plugged in              | Secrets decrypt successfully on first setup    |
 | Add host’s Age key to `.sops.yaml`              | Let host decrypt without USB                   |
 | Disable `bootstrap.usb.enable`                  | Host becomes self-sufficient                   |
