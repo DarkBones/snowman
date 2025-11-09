@@ -15,8 +15,8 @@
     };
   };
 
-  outputs =
-    { self, nixpkgs, nixpkgs-unstable, home-manager, disko, agenix, ... }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, home-manager, disko, agenix
+    , sops-nix, ... }:
     let
       inv = import ./inventory.nix;
 
@@ -29,7 +29,7 @@
         in nixpkgs.lib.nixosSystem {
           system = attrs.system;
           specialArgs = {
-            inherit home-manager inv pkgsUnstable;
+            inherit home-manager inv pkgsUnstable sops-nix;
             currentHost = name;
           };
           modules = [

@@ -1,3 +1,7 @@
+# BEFORE RELEASE CHECKLIST
+
+- [ ] Convert all existing encrypted secrets with bogus values
+
 ## 🔐 Bootstrap Secrets via USB (Snowman Key)
 
 When setting up a **fresh machine or VM**, you may not yet have a host SSH key that can decrypt your Age secrets (like passwords or API tokens).

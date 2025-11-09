@@ -8,6 +8,7 @@
     ./secrets/env.nix
     ./security.nix
     ./nix.nix
+    ./sops.nix
     ./home/from-inventory.nix
   ];
   home-manager.extraSpecialArgs = { inherit pkgsUnstable; };
