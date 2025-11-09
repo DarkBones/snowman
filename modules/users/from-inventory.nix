@@ -69,8 +69,10 @@ in {
         })
 
         (lib.optionalAttrs hasSecret {
+          # users.users.${name}.hashedPasswordFile =
+          #   config.age.secrets."${name}-password".path;
           users.users.${name}.hashedPasswordFile =
-            config.age.secrets."${name}-password".path;
+            config.sops.secrets.password.path;
         } // lib.optionalAttrs (!hasSecret && hasInitial) {
           users.users.${name}.initialPassword = u.initialPassword;
         })

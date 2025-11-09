@@ -1,43 +1,48 @@
 { lib, sops-nix, config, inv, currentHost, ... }:
-
 let
-  cfg = config.roles.secrets;
-
   hasHost = builtins.hasAttr currentHost inv.hosts;
   host = if hasHost then inv.hosts.${currentHost} else { };
+  hostUsers = if hasHost then host.users else [ ];
 
-  # Very simple convention: first user in inventory list for this host
-  primaryUserName =
-    if hasHost && host.users != [ ] then builtins.head host.users else null;
+  usersWithSecrets = lib.filterAttrs
+    (name: u: lib.elem name hostUsers && (u.sopsSecretsFile or null) != null)
+    inv.users;
+
+  mkSecretsForUser = userName:
+    let
+      u = inv.users.${userName};
+      sopsFile = u.sopsSecretsFile;
+      secretKeys = u.sopsSecretKeys or [ ];
+    in builtins.listToAttrs (map (key: {
+      name = key; # keep YAML key name
+      value = {
+        inherit sopsFile;
+        format = "yaml";
+        path = key; # read just this key from that YAML file
+        owner = config.users.users.${userName}.name;
+        inherit (config.users.users.${userName}) group;
+        mode = "0400";
+      };
+    }) secretKeys);
+
+  perUserSecrets =
+    lib.foldl' (acc: userName: acc // mkSecretsForUser userName) { }
+    (builtins.attrNames usersWithSecrets);
+
 in {
   imports = [ sops-nix.nixosModules.sops ];
 
-  options.roles.secrets.enable = lib.mkEnableOption "Secrets role";
+  config = lib.mkIf (perUserSecrets != { }) {
+    sops = {
+      validateSopsFiles = false;
 
-  config = lib.mkIf cfg.enable (lib.mkMerge [
-    {
-      sops = {
-        defaultSopsFile = ../secrets.yml;
-        validateSopsFiles = false;
-
-        age = {
-          # Auto-import host SSH key as age identity
-          sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
-          keyFile = "/var/lib/sops-nix/key.txt";
-          generateKey = true;
-        };
+      age = {
+        sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
+        keyFile = "/var/lib/sops-nix/key.txt";
+        generateKey = true;
       };
-    }
 
-    # Only define the secret if we actually have a primary user
-    (lib.mkIf (primaryUserName != null) {
-      sops.secrets."admin-password" = {
-        # same style as the tutorial:
-        owner = config.users.users.${primaryUserName}.name;
-        inherit (config.users.users.${primaryUserName}) group;
-        # optional: tighten permissions
-        mode = "0400";
-      };
-    })
-  ]);
+      secrets = perUserSecrets;
+    };
+  };
 }

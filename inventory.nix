@@ -36,9 +36,14 @@
       groups = [ "wheel" ];
       shell = "zsh";
       sshPubKeys = [ (builtins.readFile ./users/keys/bas-arch.pub) ];
+
       # initialPassword = "changeme"; # default plain text password
       passwordSecret =
-        ./secrets/admin-password.age; # set real password on build
+        ./secrets/admin-password.age; # set real password on build # TODO: Deprecate
+
+      sopsSecretsFile = ./users/secrets/bas_secrets.yml;
+      sopsSecretKeys = [ "password" ];
+
       roles = {
         dev.enable = true;
         ssh.enable = true;
