@@ -5,6 +5,15 @@ let
   host = if hasHost then inv.hosts.${currentHost} else { };
   hostUsers = if hasHost then host.users else [ ];
 
+  usbCfg = host.bootstrap.usb or { enable = false; };
+
+  keyFilePath = if usbCfg.enable then
+    "${usbCfg.path}/${usbCfg.keyFile}"
+  else
+    "/var/lib/sops-nix/key.txt"; # TODO: DRY - and convert to .key
+
+  generateKeyFlag = !usbCfg.enable;
+
   usersWithSecrets = lib.filterAttrs
     (name: u: lib.elem name hostUsers && (u.sopsSecretsFile or null) != null)
     inv.users;
@@ -48,11 +57,11 @@ in {
 
   config = lib.mkIf (perUserSecrets != { }) {
     sops = {
-      validateSopsFiles = false;
+      validateSopsFiles = true;
       age = {
         sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
-        keyFile = "/var/lib/sops-nix/key.txt";
-        generateKey = true;
+        keyFile = keyFilePath;
+        generateKey = generateKeyFlag;
       };
       secrets = perUserSecrets;
     };

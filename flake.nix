@@ -8,15 +8,14 @@
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
     disko.url = "github:nix-community/disko";
     nixos-hardware.url = "github:NixOS/nixos-hardware";
-    agenix.url = "github:ryantm/agenix";
     sops-nix = {
       url = "github:mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, home-manager, disko, agenix
-    , sops-nix, ... }:
+  outputs =
+    { self, nixpkgs, nixpkgs-unstable, home-manager, disko, sops-nix, ... }:
     let
       inv = import ./inventory.nix;
 
@@ -35,7 +34,6 @@
           modules = [
             home-manager.nixosModules.home-manager
             disko.nixosModules.disko
-            agenix.nixosModules.default
             ./modules
           ];
         };

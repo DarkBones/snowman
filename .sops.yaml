@@ -1,6 +1,6 @@
 keys:
   - &users:
-    - &usb age10z86j26fzxkh64phvsa2nkc5zjdejyesjy4gu2zqmzh8tfknpprq7l3l0k
+    - &usb age19accmh2fdvga58t4gk0rcnchhkwve8svc3gmdhe9sf2r77azjcpsednggl
   - &hosts:
     - &nix-vm age1pel05an6v9sryemdku0rwvsft4ragmtnu5520q3s6tg7svrj7y2snf2y66
     - &arch age1g5kwt7qc59wl4eg9g8vt7wdu9c4xjsz7mnzuhq3uw9fxyy2u6dxs6cxxwz

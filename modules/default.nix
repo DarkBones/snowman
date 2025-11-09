@@ -1,15 +1,14 @@
 { pkgsUnstable, ... }: {
   imports = [
-    ./ssh.nix
     ./hardware/from-inventory.nix
+    ./home/from-inventory.nix
     ./storage/rootfs-from-inventory.nix
     ./users/from-inventory.nix
-    # ./secrets/agenix.nix
-    # ./secrets/env.nix
-    ./security.nix
+    ./bootstrap-usb.nix
     ./nix.nix
+    ./security.nix
     ./sops.nix
-    ./home/from-inventory.nix
+    ./ssh.nix
   ];
   home-manager.extraSpecialArgs = { inherit pkgsUnstable; };
 }
