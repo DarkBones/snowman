@@ -29,6 +29,7 @@
     };
     # macs later via nix-darwin
   };
+
   users = {
     bas = {
       uid = 1000;
@@ -39,30 +40,52 @@
 
       sopsSecretsFile = ./users/secrets/bas_secrets.yml;
       sopsSecretKeys = [ "password_hash" "test" ];
+      sopsPasswordHashKey = "password_hash";
 
       envFile = ./users/env/bas.nix;
-
-      # initialPassword = "changeme"; # default plain text password
-      sopsPasswordHashKey =
-        "password_hash"; # <- The secret key used for initializing the user's password (must be one of the `sopSecretKeys`)
 
       roles = {
         dev.enable = true;
         ssh.enable = true;
         secrets.enable = true;
+
         dotfiles = {
           enable = true;
-          repo = "git@github.com:DarkBones/.dotfiles.git";
+
+          ############################################################
+          ## MODE SELECTION
+          ##
+          ## If `sourceKey` resolves in dotfilesSources (specialArgs),
+          ## we use *pinned mode* (flake input in the Nix store).
+          ##
+          ## If `sourceKey` is null or doesn't resolve, we fall back
+          ## to *git mode* (clone/pull at activation time).
+          ############################################################
+
+          # Pinned mode (reproducible; uses flake input)
+          # default = home.username if omitted
+          # sourceKey = "bas";
+
+          ############################################################
+          ## GIT MODE (NON-REPRODUCIBLE)
+          ##
+          ## Only used when pinned mode is not active.
+          ############################################################
+          repo = "git@github.com:DarkBones/dotfiles.git";
           dir = "Developer/dotfiles";
-          branch = "nix"; # TODO: Make `main` default
+          branch = "nix"; # TODO: Make `main` default later
           sparse = [ "nvim" "zsh" ];
+
+          ############################################################
+          ## SHARED SETTINGS (BOTH MODES)
+          ############################################################
           linkMap = {
             ".config/nvim" = "nvim/.config/nvim";
             ".zsh" = "zsh/.zsh";
             ".zshrc" = "zsh/.zshrc";
           };
-          # deployTokenKey =
-          #   "dotfiles_deploy_key"; # TODO: Wire this secret key path to get the READ-ONLY deploy key for private dotfiles. Test by removing current ssh key pair on vm
+
+          # TODO (future): deployTokenKey / deployKeySecret for private SSH access
         };
       };
     };

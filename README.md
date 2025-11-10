@@ -2,6 +2,7 @@
 
 - [ ] Convert all existing encrypted secrets with bogus values
 - [ ] Create kill-switch in case key is leaked
+- [ ] Comment out bas-dotfiles flake input as an optional example over pulling dotfiles at activation time
 
 # Snowman – minimal spine
 

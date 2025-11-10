@@ -1,4 +1,4 @@
-{ pkgsUnstable, ... }: {
+{ pkgsUnstable, dotfilesSources, ... }: {
   imports = [
     ./hardware/from-inventory.nix
     ./home/from-inventory.nix
@@ -10,5 +10,5 @@
     ./sops.nix
     ./ssh.nix
   ];
-  home-manager.extraSpecialArgs = { inherit pkgsUnstable; };
+  home-manager.extraSpecialArgs = { inherit pkgsUnstable dotfilesSources; };
 }

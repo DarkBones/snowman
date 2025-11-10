@@ -12,10 +12,14 @@
       url = "github:mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    bas-dotfiles = {
+      url = "github:DarkBones/dotfiles";
+      flake = false;
+    };
   };
 
-  outputs =
-    { self, nixpkgs, nixpkgs-unstable, home-manager, disko, sops-nix, ... }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, home-manager, disko, sops-nix
+    , bas-dotfiles, ... }:
     let
       inv = import ./inventory.nix;
 
@@ -29,6 +33,7 @@
           system = attrs.system;
           specialArgs = {
             inherit home-manager inv pkgsUnstable sops-nix;
+            dotfilesSources = { bas = bas-dotfiles; };
             currentHost = name;
           };
           modules = [

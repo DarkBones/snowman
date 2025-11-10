@@ -1,5 +1,21 @@
 {
   "nodes": {
+    "bas-dotfiles": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1762787078,
+        "narHash": "sha256-XDpweeTqvnJANx17YhGVcs1X5CJprgnw3VT0VfCWCJc=",
+        "owner": "DarkBones",
+        "repo": "dotfiles",
+        "rev": "f26c66941f97d8ef259bd2eff34893eb197968bb",
+        "type": "github"
+      },
+      "original": {
+        "owner": "DarkBones",
+        "repo": "dotfiles",
+        "type": "github"
+      }
+    },
     "disko": {
       "inputs": {
         "nixpkgs": "nixpkgs"
@@ -104,6 +120,7 @@
     },
     "root": {
       "inputs": {
+        "bas-dotfiles": "bas-dotfiles",
         "disko": "disko",
         "home-manager": "home-manager",
         "nixos-hardware": "nixos-hardware",
