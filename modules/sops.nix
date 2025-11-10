@@ -39,6 +39,9 @@ let
     lib.foldl' (acc: userName: acc // mkSecretsForUser userName) { }
     (builtins.attrNames usersWithSecrets);
 
+  hostSecrets = config.snowman.hostSecrets or { };
+  allSecrets = hostSecrets // perUserSecrets;
+
   sopsPasswordKeyAssertions = lib.mapAttrsToList (name: u:
     let
       keyValid = !(u ? secrets.userPasswordHashKey)
@@ -47,15 +50,13 @@ let
       assertion = keyValid;
       message = "User ${name}: secrets.userPasswordHashKey '${
           u.secrets.userPasswordHashKey or "«unset»"
-        }' not found in secrets.keys (${
-          toString (u.secrets.keys or [ ])
-        }).";
+        }' not found in secrets.keys (${toString (u.secrets.keys or [ ])}).";
     }) inv.users;
 
 in {
   imports = [ sops-nix.nixosModules.sops ];
 
-  config = lib.mkIf (perUserSecrets != { }) {
+  config = lib.mkIf (allSecrets != { }) {
     sops = {
       validateSopsFiles = true;
       age = {
@@ -63,7 +64,7 @@ in {
         keyFile = keyFilePath;
         generateKey = generateKeyFlag;
       };
-      secrets = perUserSecrets;
+      secrets = allSecrets;
     };
 
     assertions = sopsPasswordKeyAssertions;

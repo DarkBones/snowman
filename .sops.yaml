@@ -1,6 +1,7 @@
 keys:
   - &users:
     - &usb age19accmh2fdvga58t4gk0rcnchhkwve8svc3gmdhe9sf2r77azjcpsednggl
+    - &archuser age1gah8tr5mjzx5hguakmcsay724r84djr00sgtlr264j3x0gwqsfuqqcc0qa
   - &hosts:
     - &nix-vm age1pel05an6v9sryemdku0rwvsft4ragmtnu5520q3s6tg7svrj7y2snf2y66
     - &arch age1g5kwt7qc59wl4eg9g8vt7wdu9c4xjsz7mnzuhq3uw9fxyy2u6dxs6cxxwz
@@ -10,6 +11,16 @@ creation_rules:
     key_groups:
       - age:
           - *usb
+          - *archuser
+          - *nix-vm
+          - *arch
+
+  # Per-host secrets files, e.g. hosts/secrets/vm-snowman.yaml
+  - path_regex: ^hosts\/secrets\/.+_secrets\.(yml|yaml)$
+    key_groups:
+      - age:
+          - *usb
+          - *archuser
           - *nix-vm
           - *arch
 
@@ -17,5 +28,6 @@ creation_rules:
     key_groups:
       - age:
           - *usb
+          - *archuser
           - *nix-vm
           - *arch

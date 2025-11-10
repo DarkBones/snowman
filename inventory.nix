@@ -8,6 +8,29 @@
       hostname = "vm-snowman"; # Optional, defaults to hosts.[name]
       provision.disk.enable = false;
       # useDHCP = true; # Default if omitted
+
+      secrets = {
+        sopsFile = ./hosts/secrets/vm-snowman_secrets.yml;
+
+        items = {
+          test = {
+            # path inside the YAML
+            key = "test";
+            # file owner/group/mode for the concrete secret file
+            owner = "root";
+            group = "root";
+            mode = "0400";
+          };
+
+          wireguard-private-key = {
+            key = "wireguard-private-key";
+            owner = "root";
+            group = "root";
+            mode = "0400";
+          };
+        };
+      };
+
       hardware = {
         boot = { firmware = "bios"; }; # "bios" | "efi"
         disk = { device = "/dev/vda"; }; # VM disk
@@ -43,7 +66,7 @@
       # sopsPasswordHashKey = "password_hash";
       secrets = {
         sopsFile = ./users/secrets/bas_secrets.yml;
-        keys = [ "password_hash" "test"];
+        keys = [ "password_hash" "test" ];
         userPasswordHashKey = "password_hash";
       };
 
