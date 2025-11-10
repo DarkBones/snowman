@@ -62,10 +62,10 @@ in {
     (lib.mkMerge (lib.mapAttrsToList (name: u:
       let
         hasInitial = u ? initialPassword;
-        hasSopsPassword = (u ? sopsSecretsFile) && (u ? sopsPasswordHashKey)
-          && lib.elem u.sopsPasswordHashKey (u.sopsSecretKeys or [ ]);
+        hasSopsPassword = (u ? secrets.sopsFile) && (u ? secrets.userPasswordHashKey)
+          && lib.elem u.secrets.userPasswordHashKey (u.secrets.keys or [ ]);
 
-        passwordKey = if hasSopsPassword then u.sopsPasswordHashKey else null;
+        passwordKey = if hasSopsPassword then u.secrets.userPasswordHashKey else null;
       in lib.mkMerge [
         (lib.optionalAttrs hasSopsPassword {
           users.users.${name}.hashedPasswordFile =

@@ -38,9 +38,14 @@
       shell = "zsh";
       sshPubKeys = [ (builtins.readFile ./users/keys/bas-arch.pub) ];
 
-      sopsSecretsFile = ./users/secrets/bas_secrets.yml;
-      sopsSecretKeys = [ "password_hash" "test" ];
-      sopsPasswordHashKey = "password_hash";
+      # sopsSecretsFile = ./users/secrets/bas_secrets.yml;
+      # sopsSecretKeys = [ "password_hash" "test" ];
+      # sopsPasswordHashKey = "password_hash";
+      secrets = {
+        sopsFile = ./users/secrets/bas_secrets.yml;
+        keys = [ "password_hash" "test"];
+        userPasswordHashKey = "password_hash";
+      };
 
       envFile = ./users/env/bas.nix;
 

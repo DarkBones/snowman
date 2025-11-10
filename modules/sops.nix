@@ -15,14 +15,14 @@ let
   generateKeyFlag = !usbCfg.enable;
 
   usersWithSecrets =
-    lib.filterAttrs (name: u: lib.elem name hostUsers && (u ? sopsSecretsFile))
+    lib.filterAttrs (name: u: lib.elem name hostUsers && (u ? secrets.sopsFile))
     inv.users;
 
   mkSecretsForUser = userName:
     let
       u = inv.users.${userName};
-      sopsFile = u.sopsSecretsFile;
-      secretKeys = u.sopsSecretKeys or [ ];
+      sopsFile = u.secrets.sopsFile;
+      secretKeys = u.secrets.keys or [ ];
     in builtins.listToAttrs (map (key: {
       name = key;
       value = {
@@ -41,14 +41,14 @@ let
 
   sopsPasswordKeyAssertions = lib.mapAttrsToList (name: u:
     let
-      keyValid = !(u ? sopsPasswordHashKey)
-        || lib.elem u.sopsPasswordHashKey (u.sopsSecretKeys or [ ]);
+      keyValid = !(u ? secrets.userPasswordHashKey)
+        || lib.elem u.secrets.userPasswordHashKey (u.secrets.keys or [ ]);
     in {
       assertion = keyValid;
-      message = "User ${name}: sopsPasswordHashKey '${
-          u.sopsPasswordHashKey or "«unset»"
-        }' not found in sopsSecretKeys (${
-          toString (u.sopsSecretKeys or [ ])
+      message = "User ${name}: secrets.userPasswordHashKey '${
+          u.secrets.userPasswordHashKey or "«unset»"
+        }' not found in secrets.keys (${
+          toString (u.secrets.keys or [ ])
         }).";
     }) inv.users;
 
