@@ -1,21 +1,5 @@
 {
   "nodes": {
-    "bas-dotfiles": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1762787078,
-        "narHash": "sha256-XDpweeTqvnJANx17YhGVcs1X5CJprgnw3VT0VfCWCJc=",
-        "owner": "DarkBones",
-        "repo": "dotfiles",
-        "rev": "f26c66941f97d8ef259bd2eff34893eb197968bb",
-        "type": "github"
-      },
-      "original": {
-        "owner": "DarkBones",
-        "repo": "dotfiles",
-        "type": "github"
-      }
-    },
     "disko": {
       "inputs": {
         "nixpkgs": "nixpkgs"
@@ -88,16 +72,16 @@
     },
     "nixpkgs-unstable": {
       "locked": {
-        "lastModified": 1762361079,
-        "narHash": "sha256-lz718rr1BDpZBYk7+G8cE6wee3PiBUpn8aomG/vLLiY=",
+        "lastModified": 1762596750,
+        "narHash": "sha256-rXXuz51Bq7DHBlfIjN7jO8Bu3du5TV+3DSADBX7/9YQ=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "ffcdcf99d65c61956d882df249a9be53e5902ea5",
+        "rev": "b6a8526db03f735b89dd5ff348f53f752e7ddc8e",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
-        "ref": "nixpkgs-unstable",
+        "ref": "nixos-unstable",
         "repo": "nixpkgs",
         "type": "github"
       }
@@ -120,7 +104,6 @@
     },
     "root": {
       "inputs": {
-        "bas-dotfiles": "bas-dotfiles",
         "disko": "disko",
         "home-manager": "home-manager",
         "nixos-hardware": "nixos-hardware",

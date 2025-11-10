@@ -71,7 +71,7 @@
           ##
           ## Only used when pinned mode is not active.
           ############################################################
-          repo = "git@github.com:DarkBones/dotfiles.git";
+          repo = "git@github.com:DarkBones/.dotfiles.git";
           dir = "Developer/dotfiles";
           branch = "nix"; # TODO: Make `main` default later
           sparse = [ "nvim" "zsh" ];
