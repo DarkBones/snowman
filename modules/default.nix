@@ -1,4 +1,9 @@
-{ lib, pkgsUnstable, dotfilesSources, ... }: {
+{ lib, pkgsUnstable, dotfilesSources, inv, currentHost, disko, ... }:
+let
+  hasHost = builtins.hasAttr currentHost inv.hosts;
+  host = if hasHost then inv.hosts.${currentHost} else { };
+  diskoOn = (host.provision.disk.enable or false);
+in {
   imports = [
     ./hardware/from-inventory.nix
     ./home/from-inventory.nix
@@ -10,9 +15,14 @@
     ./security.nix
     ./sops.nix
     ./ssh.nix
-  ] ++ lib.optional (builtins.pathExists /etc/nixos/hardware-configuration.nix)
+  ] ++ lib.optional diskoOn disko.nixosModules.disko
+
+    ++ lib.optional
+    (!diskoOn && builtins.pathExists /etc/nixos/hardware-configuration.nix)
     /etc/nixos/hardware-configuration.nix
-    ++ lib.optional (!builtins.pathExists /etc/nixos/hardware-configuration.nix)
+
+    ++ lib.optional
+    (!diskoOn && !builtins.pathExists /etc/nixos/hardware-configuration.nix)
     ({ ... }: {
       fileSystems."/" = {
         device = "/dev/disk/by-label/nixos";

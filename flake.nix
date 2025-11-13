@@ -38,16 +38,9 @@
     ############################################################
   };
 
-  outputs =
-    { self
-    , nixpkgs
-    , nixpkgs-unstable
-    , home-manager
-    , disko
-    , sops-nix
+  outputs = { self, nixpkgs, nixpkgs-unstable, home-manager, disko, sops-nix
     # , bas-dotfiles  # Uncomment when you actually use a pinned dotfiles input
-    , ...
-    }:
+    , ... }:
     let
       inv = import ./inventory.nix;
 
@@ -87,16 +80,11 @@
         in nixpkgs.lib.nixosSystem {
           system = attrs.system;
           specialArgs = {
-            inherit home-manager inv pkgsUnstable sops-nix dotfilesSources;
+            inherit home-manager inv pkgsUnstable sops-nix dotfilesSources
+              disko;
             currentHost = name;
           };
-          modules = [
-            home-manager.nixosModules.home-manager
-            disko.nixosModules.disko
-            ./modules
-          ];
+          modules = [ home-manager.nixosModules.home-manager ./modules ];
         };
-    in {
-      nixosConfigurations = nixpkgs.lib.mapAttrs mkHost inv.hosts;
-    };
+    in { nixosConfigurations = nixpkgs.lib.mapAttrs mkHost inv.hosts; };
 }
