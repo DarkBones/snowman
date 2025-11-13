@@ -31,15 +31,15 @@
         };
       };
 
-      hardware = {
-        boot = { firmware = "bios"; }; # "bios" | "efi"
-        disk = { device = "/dev/vda"; }; # VM disk
-        fs = {
-          type = "btrfs";
-          rootLabel = "nixos";
-          swapGiB = 0;
-        };
-      };
+      # hardware = {
+      #   boot = { firmware = "bios"; }; # "bios" | "efi"
+      #   disk = { device = "/dev/vda"; }; # VM disk
+      #   fs = {
+      #     type = "btrfs";
+      #     rootLabel = "nixos";
+      #     swapGiB = 0;
+      #   };
+      # };
       users = [ "bas" ];
 
       bootstrap.usb = {
