@@ -40,6 +40,7 @@
       #     swapGiB = 0;
       #   };
       # };
+
       users = [ "bas" ];
 
       bootstrap.usb = {
