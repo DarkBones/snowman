@@ -31,15 +31,16 @@
         };
       };
 
-      # hardware = {
-      #   boot = { firmware = "bios"; }; # "bios" | "efi"
-      #   disk = { device = "/dev/vda"; }; # VM disk
-      #   fs = {
-      #     type = "btrfs";
-      #     rootLabel = "nixos";
-      #     swapGiB = 0;
-      #   };
-      # };
+      hardware = {
+        boot = { firmware = "bios"; }; # "bios" | "efi"
+        # disk = { device = "/dev/vda"; }; # VM disk
+        bootDevice = "/dev/vda";
+        fs = {
+          type = "ext4";
+          rootUuid = "fc5a0bc6-e1ae-4533-aebc-a15543025c96";
+          # swapGiB = 0;
+        };
+      };
 
       users = [ "bas" ];
 

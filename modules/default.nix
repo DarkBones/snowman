@@ -15,21 +15,7 @@ in {
     ./security.nix
     ./sops.nix
     ./ssh.nix
-  ] ++ lib.optional diskoOn disko.nixosModules.disko
-
-    ++ lib.optional
-    (!diskoOn && builtins.pathExists /etc/nixos/hardware-configuration.nix)
-    /etc/nixos/hardware-configuration.nix
-
-    ++ lib.optional
-    (!diskoOn && !builtins.pathExists /etc/nixos/hardware-configuration.nix)
-    ({ ... }: {
-      fileSystems."/" = {
-        device = "/dev/disk/by-label/nixos";
-        fsType = "ext4";
-      };
-      boot.loader.grub.devices = [ "/dev/vda" ];
-    });
+  ] ++ lib.optional diskoOn disko.nixosModules.disko;
 
   home-manager.extraSpecialArgs = { inherit pkgsUnstable dotfilesSources; };
 }
