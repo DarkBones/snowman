@@ -88,6 +88,8 @@
             [ home-manager.nixosModules.home-manager ./modules/default.nix ];
         };
 
+      nixosConfigurations = lib.mapAttrs mkHost inv.hosts;
+
       mkHomeConfigs = hostName: hostAttrs:
         let
           hostUsers = inv.hosts.${hostName}.users or [ ];
@@ -96,6 +98,7 @@
           system = hostAttrs.system;
           pkgs = makePkgs system;
           pkgsUnstable = makePkgsUnstable system;
+          osConfig = nixosConfigurations.${hostName}.config;
         in lib.listToAttrs (map (user:
           let
             userCfg = inv.users.${user};
@@ -114,15 +117,16 @@
             value = home-manager.lib.homeManagerConfiguration {
               inherit pkgs;
               extraSpecialArgs = {
-                inherit pkgsUnstable dotfilesSources inv;
+                inherit pkgsUnstable dotfilesSources inv osConfig;
                 currentHost = hostName;
               };
               modules = baseModules;
             };
           }) managedUsers);
 
-    in {
-      nixosConfigurations = lib.mapAttrs mkHost inv.hosts;
       homeConfigurations = lib.concatMapAttrs mkHomeConfigs inv.hosts;
+
+    in {
+      inherit nixosConfigurations homeConfigurations;
     };
 }
