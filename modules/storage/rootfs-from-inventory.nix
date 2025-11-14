@@ -21,9 +21,18 @@ in lib.mkIf
     fsType = fs.type or "ext4";
   };
 
-  # This is the missing piece!
   boot.loader.grub = {
     enable = true;
     devices = [ host.hardware.bootDevice ];
   };
+
+  boot.initrd.availableKernelModules = [
+    "ahci"
+    "xhci_pci"
+    "virtio_pci"
+    "usb_storage"
+    "sd_mod"
+    "sr_mod"
+    "virtio_blk"
+  ];
 }
