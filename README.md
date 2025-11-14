@@ -417,6 +417,112 @@ Once the host is up and stable:
 | Add host’s Age key to `.sops.yaml`              | Let host decrypt without USB                   |
 | Disable `bootstrap.usb.enable`                  | Host becomes self-sufficient                   |
 
+---
+
+## 🚀 Fresh install workflow
+
+Below is the exact sequence that works today after imaging a new box/VM with
+Snowman. The `bas` user ships with the temporary password from
+`inventory.nix`, so log in locally or via the console first.
+
+### 1. Baseline flow (no USB access)
+
+1. Clone or copy this repo to `~/snowman` (or wherever you keep your flakes).
+2. Switch the system profile:
+
+   ```bash
+   sudo nixos-rebuild switch --flake ~/snowman#vm-snowman
+   ```
+
+3. Bootstrap your Home Manager profile (this also installs the `roles.dev`
+   packages and generates `~/.ssh/id_ed25519` if one doesn’t exist):
+
+   ```bash
+   nix run nixpkgs#home-manager -- switch --flake ~/snowman#bas@vm-snowman
+   ```
+
+4. Because the dotfiles role pulls from `git@github.com:DarkBones/.dotfiles.git`,
+   copy the generated public key to another machine and paste it into GitHub →
+   **Settings → SSH keys**:
+
+   ```bash
+   cat ~/.ssh/id_ed25519.pub
+   ```
+
+   Once GitHub accepts it, verify:
+
+   ```bash
+   ssh -T git@github.com
+   ```
+
+5. Re-run the Home Manager switch so the dotfiles repo clones and the symlinks
+   (`linkMap`) are created:
+
+   ```bash
+   nix run nixpkgs#home-manager -- switch --flake ~/snowman#bas@vm-snowman
+   ```
+
+6. Confirm the dev role packages are on your PATH (the `home.sessionPath`
+   fragment in `users/env/bas.nix` now prepends the Home Manager profile):
+
+   ```bash
+   nvim --version
+   pnpm --version
+   ```
+
+### 2. Using the SNOWMANKEY USB
+
+On real hardware you normally have the USB (`SNOWMANKEY`) attached, which
+solves both secrets **and** SSH access:
+
+1. Plug in the USB before boot. `modules/bootstrap-usb.nix` automatically mounts
+   `/dev/disk/by-label/SNOWMANKEY` at `/mnt/snowman` (per
+   `inventory.nix.bootstrap.usb`). That same module feeds
+   `sops.age.keyFile = "/mnt/snowman/snowman.key"`, so secrets decrypt on the
+   first boot.
+2. Store your Git deploy/private key on the USB as well, e.g.:
+
+   ```bash
+   sudo mount /dev/disk/by-label/SNOWMANKEY /mnt/snowman
+   mkdir -p ~/.ssh
+   cp /mnt/snowman/id_ed25519 ~/.ssh/
+   chmod 600 ~/.ssh/id_ed25519
+   cp /mnt/snowman/id_ed25519.pub ~/.ssh/
+   sudo umount /mnt/snowman
+   ```
+
+3. With the key in place, the initial `home-manager switch` succeeds on the
+   first try because GitHub already trusts the SSH key. After that, continue
+   with step 5 above (re-run HM if you change anything).
+
+> ✅ The USB module code is intentionally small and still correct: it
+> declaratively mounts the label you configured and marks it `nofail`, so
+> missing hardware won’t block boot. Once you disable `bootstrap.usb.enable`,
+> the entry disappears.
+
+### 3. Current experience vs. future polish
+
+**Current reality**
+
+- Two switches are required today—`nixos-rebuild` for the host and
+  `home-manager` for per-user roles.
+- The dotfiles role runs even when Git auth fails, so you get packages but no
+  symlinks until GitHub knows your key.
+- Without the USB, copying the public key to GitHub is a manual/air-gapped
+  step (especially inside a VM that can’t see the host USB).
+
+**Ideas to improve later**
+
+1. Ship a pinned dotfiles flake input (`dotfilesSources`) so clone failures
+   become build-time issues instead of runtime warnings.
+2. Teach `roles.dotfiles` about deploy tokens or HTTPS PATs to avoid depending
+   on SSH in fresh VMs.
+3. Enhance `scripts/bootstrap.sh` to detect when SNOWMANKEY isn’t attached and
+   offer to drop the generated public key to the console automatically.
+4. Once the USB workflow is standardised, consider syncing the SSH private key
+   from `/mnt/snowman` automatically (with explicit confirmation) so the manual
+   copy/paste step disappears entirely.
+
 ### Root filesystem hints
 
 Define how to find `/` in `hosts.<name>.hardware.fs`.  The storage module
