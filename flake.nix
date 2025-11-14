@@ -42,55 +42,87 @@
     # , bas-dotfiles  # Uncomment when you actually use a pinned dotfiles input
     , ... }:
     let
+      lib = nixpkgs.lib;
       inv = import ./inventory.nix;
 
+      makePkgs = system: import nixpkgs {
+        inherit system;
+        config = { allowUnfree = true; };
+      };
+
+      makePkgsUnstable = system: import nixpkgs-unstable {
+        inherit system;
+        config = { allowUnfree = true; };
+      };
+
+      ########################################################
+      ## dotfilesSources:
+      ##
+      ## This attrset is passed into NixOS + Home Manager
+      ## as `specialArgs` / `extraSpecialArgs`.
+      ##
+      ## - When empty (default), all users use Git mode.
+      ## - To enable pinned mode for a user, map a key
+      ##   (usually their username) to a flake input.
+      ########################################################
+      dotfilesSources = {
+        # bas = bas-dotfiles;
+      };
+
+      mkNixosSpecialArgs = name: attrs: {
+        inherit home-manager inv sops-nix dotfilesSources disko;
+        pkgsUnstable = makePkgsUnstable attrs.system;
+
+        # Always point at the actual nixos/modules path instead of the attrset
+        # of predefined modules exposed under nixpkgs.nixosModules.
+        modulesPath = "${nixpkgs}/nixos/modules";
+
+        currentHost = name;
+      };
+
       mkHost = name: attrs:
-        let
-          pkgsUnstable = import nixpkgs-unstable {
-            system = attrs.system;
-            config = { allowUnfree = true; };
-          };
-
-          ########################################################
-          ## dotfilesSources:
-          ##
-          ## This attrset is passed into NixOS + Home Manager
-          ## as `specialArgs` / `extraSpecialArgs`.
-          ##
-          ## - When empty (default), all users use Git mode.
-          ## - To enable pinned mode for a user, map a key
-          ##   (usually their username) to a flake input.
-          ##
-          ##   Example, together with the commented input above:
-          ##
-          ##   dotfilesSources = {
-          ##     bas = bas-dotfiles;
-          ##   };
-          ##
-          ## In inventory.nix you can then set:
-          ##
-          ##   users.bas.roles.dotfiles.sourceKey = "bas";
-          ##
-          ## or just rely on the default sourceKey = home.username.
-          ########################################################
-          dotfilesSources = {
-            # bas = bas-dotfiles;
-          };
-
-        in nixpkgs.lib.nixosSystem {
+        nixpkgs.lib.nixosSystem {
           system = attrs.system;
-          specialArgs = {
-            inherit home-manager inv pkgsUnstable sops-nix dotfilesSources
-              disko;
-
-            # Always point at the actual nixos/modules path instead of the
-            # attrset of predefined modules exposed under nixpkgs.nixosModules.
-            modulesPath = "${nixpkgs}/nixos/modules";
-
-            currentHost = name;
-          };
+          specialArgs = mkNixosSpecialArgs name attrs;
           modules =
             [ home-manager.nixosModules.home-manager ./modules/default.nix ];
         };
-    in { nixosConfigurations = nixpkgs.lib.mapAttrs mkHost inv.hosts; };
+
+      mkHomeConfigs = hostName: hostAttrs:
+        let
+          hostUsers = inv.hosts.${hostName}.users or [ ];
+          managedUsers = lib.filter (user:
+            (inv.users.${user}.homeManaged or false)) hostUsers;
+          system = hostAttrs.system;
+          pkgs = makePkgs system;
+          pkgsUnstable = makePkgsUnstable system;
+        in lib.listToAttrs (map (user:
+          let
+            userCfg = inv.users.${user};
+            baseModules = [ ./modules/home/default.nix ]
+              ++ lib.optional (userCfg ? envFile) userCfg.envFile
+              ++ [{
+                home.username = user;
+                home.homeDirectory = "/home/${user}";
+                home.stateVersion = inv.release;
+                roles = userCfg.roles or { };
+                programs.home-manager.enable = true;
+                systemd.user.startServices = false;
+              }];
+          in {
+            name = "${user}@${hostName}";
+            value = home-manager.lib.homeManagerConfiguration {
+              inherit pkgs;
+              extraSpecialArgs = {
+                inherit pkgsUnstable dotfilesSources inv;
+                currentHost = hostName;
+              };
+              modules = baseModules;
+            };
+          }) managedUsers);
+
+    in {
+      nixosConfigurations = lib.mapAttrs mkHost inv.hosts;
+      homeConfigurations = lib.concatMapAttrs mkHomeConfigs inv.hosts;
+    };
 }
