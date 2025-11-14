@@ -31,6 +31,8 @@
         };
       };
 
+      profiles = [ "qemu-guest" ];
+
       hardware = {
         boot = { firmware = "bios"; }; # "bios" | "efi"
         # disk = { device = "/dev/vda"; }; # VM disk

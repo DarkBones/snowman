@@ -25,14 +25,4 @@ in lib.mkIf
     enable = true;
     devices = [ host.hardware.bootDevice ];
   };
-
-  boot.initrd.availableKernelModules = [
-    "ahci"
-    "xhci_pci"
-    "virtio_pci"
-    "usb_storage"
-    "sd_mod"
-    "sr_mod"
-    "virtio_blk"
-  ];
 }

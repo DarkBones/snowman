@@ -82,6 +82,9 @@
           specialArgs = {
             inherit home-manager inv pkgsUnstable sops-nix dotfilesSources
               disko;
+
+            modulesPath = nixpkgs.nixosModules;
+
             currentHost = name;
           };
           modules = [ home-manager.nixosModules.home-manager ./modules ];

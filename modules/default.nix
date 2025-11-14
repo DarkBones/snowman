@@ -15,6 +15,7 @@ in {
     ./security.nix
     ./sops.nix
     ./ssh.nix
+    ./profiles.nix
   ] ++ lib.optional diskoOn disko.nixosModules.disko;
 
   home-manager.extraSpecialArgs = { inherit pkgsUnstable dotfilesSources; };
