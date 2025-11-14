@@ -83,7 +83,9 @@
             inherit home-manager inv pkgsUnstable sops-nix dotfilesSources
               disko;
 
-            modulesPath = nixpkgs.nixosModules;
+            # Always point at the actual nixos/modules path instead of the
+            # attrset of predefined modules exposed under nixpkgs.nixosModules.
+            modulesPath = "${nixpkgs}/nixos/modules";
 
             currentHost = name;
           };
