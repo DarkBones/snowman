@@ -61,6 +61,7 @@ in {
     # Git/ssh tools are only strictly needed in legacy mode
     {
       home.packages = with pkgs; [ git openssh ];
+      programs.ssh.enable = true;
     }
 
     # --- Reproducible mode: use flake input (store path) ---
@@ -96,6 +97,20 @@ in {
 
           export PATH="${pkgs.openssh}/bin:${pkgs.git}/bin:$PATH"
 
+          keydir="$HOME/.ssh"
+          keyfile="$keydir/id_ed25519"
+
+          if [ ! -f "$keyfile" ]; then
+            echo "[dotfiles] Generating SSH key at $keyfile"
+            mkdir -p "$keydir"
+            chmod 700 "$keydir"
+            "${pkgs.openssh}/bin/ssh-keygen" \
+              -t ed25519 \
+              -N "" \
+              -f "$keyfile" \
+              -C "$USER@$("${pkgs.inetutils}/bin/hostname")"
+          fi
+
           REPO=${lib.escapeShellArg cfg.repo}
           BRANCH=${lib.escapeShellArg cfg.branch}
           DIR=${lib.escapeShellArg cfg.dir}
@@ -118,7 +133,7 @@ in {
               "$git" -C "$DIR_REAL" sparse-checkout init --cone
             else
               echo "[dotfiles] Updating repo in $DIR_REAL"
-              "$git" -C "$DIR_REAL" fetch --prune
+            "$git" -C "$DIR_REAL" fetch --prune
             fi
 
             if [ ${toString (cfg.sparse != [ ])} = "1" ]; then
