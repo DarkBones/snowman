@@ -10,4 +10,8 @@ let
     else
       throw "Snowman: Unknown profile '${profileName}'";
 
-in { imports = lib.map toProfilePath profiles; }
+in {
+  imports = lib.map toProfilePath profiles;
+
+  config = { };
+}

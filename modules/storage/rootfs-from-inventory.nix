@@ -13,16 +13,18 @@ let
   else
     null;
 
-in lib.mkIf
-(hasHardware && !diskoOn && device != null && host.hardware ? bootDevice) {
+in {
+  config = lib.mkIf
+    (hasHardware && !diskoOn && device != null && host.hardware ? bootDevice) {
 
-  fileSystems."/" = {
-    inherit device;
-    fsType = fs.type or "ext4";
-  };
+      fileSystems."/" = {
+        inherit device;
+        fsType = fs.type or "ext4";
+      };
 
-  boot.loader.grub = {
-    enable = true;
-    devices = [ host.hardware.bootDevice ];
-  };
+      boot.loader.grub = {
+        enable = true;
+        devices = [ host.hardware.bootDevice ];
+      };
+    };
 }

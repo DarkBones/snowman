@@ -18,5 +18,7 @@ in {
     ./profiles.nix
   ] ++ lib.optional diskoOn disko.nixosModules.disko;
 
-  home-manager.extraSpecialArgs = { inherit pkgsUnstable dotfilesSources; };
+  config = {
+    home-manager.extraSpecialArgs = { inherit pkgsUnstable dotfilesSources; };
+  };
 }
