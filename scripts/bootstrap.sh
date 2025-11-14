@@ -46,24 +46,22 @@ if [ -d "$TARGET/.git" ]; then
 else
   if [ -d "$TARGET" ] && [ "$(ls -A "$TARGET")" ]; then
     warn "$TARGET exists and is not a git repo—backing it up."
-    # Temporarily move the old config
     sudo mv "$TARGET" "/etc/nixos.bak"
 
-    # Clone the new repo
     say "Cloning Snowman -> $TARGET"
     git clone --branch "$BRANCH" --depth 1 "$REPO" "$TARGET"
 
-    # If the installer created a hardware config, copy it back!
     if [ -f "/etc/nixos.bak/hardware-configuration.nix" ]; then
       say "Preserving existing hardware-configuration.nix"
       sudo mv "/etc/nixos.bak/hardware-configuration.nix" "$TARGET/hardware-configuration.nix"
     fi
 
-    # Clean up the rest of the backup
     sudo rm -rf "/etc/nixos.bak"
+  else
+    # Case 2: /etc/nixos does not exist or is empty
+    say "Cloning Snowman -> $TARGET"
+    git clone --branch "$BRANCH" --depth 1 "$REPO" "$TARGET"
   fi
-  say "Cloning Snowman -> $TARGET"
-  git clone --branch "$BRANCH" --depth 1 "$REPO" "$TARGET"
 fi
 
 say "Apply Snowman (BIOS/GRUB expected)"
