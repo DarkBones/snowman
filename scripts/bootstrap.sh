@@ -58,7 +58,6 @@ else
 
     sudo rm -rf "/etc/nixos.bak"
   else
-    # Case 2: /etc/nixos does not exist or is empty
     say "Cloning Snowman -> $TARGET"
     sudo rm -rf "$TARGET"
     git clone --branch "$BRANCH" --depth 1 "$REPO" "$TARGET"

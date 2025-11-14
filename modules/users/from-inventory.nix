@@ -62,10 +62,12 @@ in {
     (lib.mkMerge (lib.mapAttrsToList (name: u:
       let
         hasInitial = u ? initialPassword;
-        hasSopsPassword = (u ? secrets.sopsFile) && (u ? secrets.userPasswordHashKey)
+        hasSopsPassword = (u ? secrets.sopsFile)
+          && (u ? secrets.userPasswordHashKey)
           && lib.elem u.secrets.userPasswordHashKey (u.secrets.keys or [ ]);
 
-        passwordKey = if hasSopsPassword then u.secrets.userPasswordHashKey else null;
+        passwordKey =
+          if hasSopsPassword then u.secrets.userPasswordHashKey else null;
       in lib.mkMerge [
         (lib.optionalAttrs hasSopsPassword {
           users.users.${name}.hashedPasswordFile =
@@ -114,14 +116,6 @@ in {
           assertion = lib.all (n: (lib.length (keysFor users.${n})) > 0)
             (builtins.attrNames users);
           message = "Inventory: each user must provide at least one SSH key";
-        }
-        {
-          assertion = lib.all (n:
-            let v = users.${n}.shell or "bash";
-            in !(lib.isString v && lib.hasPrefix "/" v))
-            (builtins.attrNames users);
-          message =
-            "Inventory: user shells must be nixpkgs package names (not absolute paths).";
         }
       ];
     }
