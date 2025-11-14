@@ -417,6 +417,32 @@ Once the host is up and stable:
 | Add host’s Age key to `.sops.yaml`              | Let host decrypt without USB                   |
 | Disable `bootstrap.usb.enable`                  | Host becomes self-sufficient                   |
 
+### Root filesystem hints
+
+Define how to find `/` in `hosts.<name>.hardware.fs`.  The storage module
+prefers identifiers in this order, so pick the most stable one for your setup:
+
+1. `device` – absolute block path (`/dev/disk/by-path/...` or `/dev/vda1`).
+2. `partition` / `partitionNumber` – numeric partition on
+   `hardware.bootDevice` (adds `p` for NVMe/mmc names automatically).
+3. `rootLabel` – mounts via `/dev/disk/by-label/<label>`.
+4. `rootUuid` – legacy fallback.
+
+Example:
+
+```nix
+hosts.vm-snowman.hardware = {
+  bootDevice = "/dev/vda";   # for GRUB installation
+  fs = {
+    type = "ext4";
+    partition = 1;           # results in /dev/vda1
+  };
+};
+```
+
+This keeps rebuilds stable even if the filesystem UUID changes during a fresh
+install—just keep the disk layout consistent.
+
 ---
 
 ## 🔍 For maintainers – where things live

@@ -39,7 +39,7 @@
         bootDevice = "/dev/vda";
         fs = {
           type = "ext4";
-          rootUuid = "fc5a0bc6-e1ae-4533-aebc-a15543025c96";
+          partition = 1; # /dev/vda1
           # swapGiB = 0;
         };
       };
