@@ -87,7 +87,8 @@
 
             currentHost = name;
           };
-          modules = [ home-manager.nixosModules.home-manager ./modules ];
+          modules =
+            [ home-manager.nixosModules.home-manager ./modules/default.nix ];
         };
     in { nixosConfigurations = nixpkgs.lib.mapAttrs mkHost inv.hosts; };
 }
