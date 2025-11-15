@@ -25,7 +25,7 @@ in {
       '';
     };
 
-    # Legacy mode: pull dotfiles at activation time (no locks, not reproducible)
+    # Git mode: pull dotfiles at activation time (no locks, not reproducible)
     repo = lib.mkOption {
       type = lib.types.str;
       default = "";
@@ -35,19 +35,19 @@ in {
     dir = lib.mkOption {
       type = lib.types.str;
       default = "dotfiles";
-      description = "Target directory for cloning dotfiles (legacy mode).";
+      description = "Target directory for cloning dotfiles (git mode).";
     };
 
     branch = lib.mkOption {
       type = lib.types.str;
       default = "main";
-      description = "Git branch to check out (legacy mode).";
+      description = "Git branch to check out (git mode).";
     };
 
     sparse = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [ ];
-      description = "List of paths for sparse checkout (legacy mode).";
+      description = "List of paths for sparse checkout (git mode).";
     };
 
     linkMap = lib.mkOption {
@@ -58,7 +58,7 @@ in {
   };
 
   config = lib.mkIf cfg.enable (lib.mkMerge [
-    # Git/ssh tools are only strictly needed in legacy mode
+    # Git/ssh tools are only strictly needed in git mode
     {
       home.packages = with pkgs; [ git openssh ];
       programs.ssh.enable = true;
@@ -89,7 +89,7 @@ in {
         '';
     })
 
-    # --- Legacy mode: fall back to git clone/pull at activation time ---
+    # --- Git mode: fall back to git clone/pull at activation time ---
     (lib.mkIf (!hasSourceKey) {
       home.activation.dotfilesSync =
         lib.hm.dag.entryAfter [ "writeBoundary" ] ''
