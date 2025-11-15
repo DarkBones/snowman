@@ -31,7 +31,7 @@
         };
       };
 
-      profiles = [ "qemu-guest" ];
+      profiles = [ "qemu-guest" ]; # ONLY for VMs. On normal machines, simply omit this key
 
       hardware = {
         boot = { firmware = "bios"; }; # "bios" | "efi"
