@@ -30,218 +30,271 @@ It’s meant to be **reproducible**, **host-agnostic**, and **inventory-driven**
 
 # Snowman ⛄
 
-Snowman is an inventory-driven NixOS framework designed to be a reusable "engine" for your own personal NixOS configuration.
+Snowman is an **inventory-driven NixOS framework** designed to be a reusable “engine” for your own personal, reproducible NixOS configuration.
 
-It is built on a "distro" and "template" model:
+It is built on a **distro + template** model:
 
-  * **The Snowman Repo (this one):** The "engine." It provides all the core `modules/` for handling users, hardware, and secrets.
-  * **Your Config Repo (yours):** The "car." You create this from the `template/` in this repo. It's where your personal `inventory.nix`, secret files, and host definitions live.
+* **The Snowman Repo (this one):**
+  The *engine*. It provides all core modules for users, hardware, secrets, and roles.
 
-## 🚀 Quick Start: The New User Workflow
+* **Your Config Repo (created from the template):**
+  The *car*. This contains your personal `inventory.nix`, secrets, user definitions, host definitions, dotfiles settings, etc.
 
-This is the official workflow for a new user starting a "Snowman-powered" configuration.
+You own your config repo forever. Snowman stays the clean, reusable engine underneath.
 
-### 1. Create Your Personal Config Repo
+---
 
-**Do not clone this repo.** Instead, use it as a template to create your *own* new, private repository.
+# 🚀 Quick Start: Create Your Personal Config Repo
 
-You can click the green **"Use this template"** button on this repo's GitHub page.
+**Do not clone this repo directly for personal use.**
+Instead, generate your *own* repo from Snowman's template.
 
-Or, from your terminal:
+### Option A: GitHub UI
+
+Click the green **“Use this template”** button on this repo’s GitHub page.
+
+### Option B: From your terminal
 
 ```bash
-nix flake new -t github:DarkBones/snowman my-personal-config
+nix flake new -t github:DarkBones/snowman#default my-personal-config
 cd my-personal-config
 ```
 
-### 2. Configure Your System
+This creates your own fresh Snowman-powered configuration directory.
 
-Your new `my-personal-config` directory is now your "forever" config. All your edits happen here.
+---
 
-1.  **Edit `inventory.nix`:** This is your main file.
-      * Delete or comment out the example `vm-snowman` host.
-      * Add your new host (e.g., `my-laptop`).
-      * Delete or comment out the example `bas` user.
-      * Add your new user (e.g., `alice`).
-2.  **Add Your Files:**
-      * Add your user's SSH public key to `users/keys/`.
-      * Create `hosts/secrets/my-laptop_secrets.yml` and `users/secrets/alice_secrets.yml` using `sops`.
-      * Update `.sops.yaml` with *your* Age public keys. (See the "Secrets Management" section below).
-3.  **Commit:** `git add .`, `git commit -m "Initial config for my-laptop"`, and `git push` to your new repo.
+# 🧭 Step 2 — Configure Your System
 
-### 3. Install a New Machine
+Everything you edit happens *inside your personal config repo*.
+Your new `my-personal-config/` directory is now your “forever config.”
 
-1.  Boot the target machine from the **official NixOS minimal ISO**.
+Inside it:
 
-2.  Connect to the internet and partition your drives.
+1. **Edit `inventory.nix`:**
+   This is the heart of Snowman.
 
-3.  Mount your new root filesystem to `/mnt`. (e.g., `mount /dev/sda1 /mnt`).
+   * Delete or comment out the example host `vm-snowman`
+   * Add your own host (e.g. `my-laptop`)
+   * Delete or comment out the example user `bas`
+   * Add your own user (e.g. `alice`)
 
-4.  Run `nixos-install`, pointing it at *your* new repo and host:
+2. **Add your files:**
 
-    ```bash
-    # (Inside the ISO environment)
-    nix-shell -p git
-    nixos-install --flake git@github.com:YourName/my-personal-config#my-laptop
-    ```
+   * Put your user’s SSH key into:
+     `users/keys/<name>.pub`
+   * Create `hosts/secrets/<host>_secrets.yml` (encrypted with sops)
+   * Create `users/secrets/<name>_secrets.yml` (also sops-encrypted)
+   * Update `.sops.yaml` with *your* Age public keys
+     (see Secrets section below)
 
-5.  If you're using the USB key method, `sops-nix` will pause and wait. Plug in your `SNOWMANKEY` USB to continue.
+3. **Commit your repo:**
 
-6.  `reboot` when finished.
+   ```bash
+   git add .
+   git commit -m "Initial Snowman setup"
+   git push
+   ```
 
-### 4. Deploy Updates
+Your config repo is now ready for installation.
 
-To push updates to your machine *after* it's been installed, run this from your main (Arch/Mac) development machine:
+---
+
+# 🖥️ Step 3 — Install a New Machine
+
+1. Boot the target machine using the **official NixOS minimal ISO**.
+
+2. Connect to the internet.
+
+3. Partition and format your disks normally.
+
+4. Mount your root filesystem at `/mnt`, e.g.:
+
+   ```bash
+   mount /dev/sda1 /mnt
+   ```
+
+5. Install NixOS using your new config repo:
+
+   ```bash
+   nix-shell -p git
+   nixos-install --flake git@github.com:YourName/my-personal-config#my-laptop
+   ```
+
+6. If you enabled the optional USB bootstrap (see below),
+   plug in the `SNOWMANKEY` when prompted by sops-nix.
+
+7. Reboot.
+
+Your new Snowman-powered machine will be configured exactly as defined.
+
+---
+
+# 🔄 Step 4 — Deploy Updates
+
+From your development machine (macOS, Linux, etc.), run:
 
 ```bash
-# Deploys the 'my-laptop' config from your flake
 nix run nixpkgs#nixos-rebuild -- switch \
   --flake path:/path/to/my-personal-config#my-laptop \
   --target-host alice@my-laptop-ip \
   --use-remote-sudo
 ```
 
------
+This updates the remote machine using your personal Snowman configuration.
 
-## 🔐 Secrets Management (Sops)
+---
 
-All file paths below are relative to **your personal config repo** (the one you made from the template).
+# 🔐 Secrets Management (Sops & Age)
 
-### Secrets model (high level)
+All secret handling happens **inside your personal config repo**.
 
 Snowman uses:
 
-  * **[sops](https://github.com/getsops/sops)** for editing encrypted YAML files.
-  * **[sops-nix](https://github.com/Mic92/sops-nix)** to decrypt them at boot.
-  * **Age** keys as recipients.
+* **sops** to encrypt/decrypt files
+* **sops-nix** to expose them to Nix at build time
+* **Age keys** as recipients
 
-Secrets are:
+## Per-user secrets
 
-  * Stored per-user (e.g., `users/secrets/<user>_secrets.yml`) and per-host (e.g., `hosts/secrets/<host>_secrets.yml`).
-  * Encrypted according to rules in `.sops.yaml`.
-  * Wired into NixOS via the `secrets` attribute in `inventory.nix`.
+Example path:
 
-### Per-user secrets files
-
-For each user, you have:
-`users/secrets/<name>_secrets.yml` \# encrypted with sops
-
-Example: `users/secrets/bas_secrets.yml`
-
-```yaml
-# users/secrets/bas_secrets.yml (edited via `sops`)
-password_hash: "$y$j9T$..."
-test: "some-random-test-secret"
+```
+users/secrets/alice_secrets.yml
 ```
 
-### How it’s wired from inventory
+Example content (encrypted with sops):
 
-In `inventory.nix`, the **user** has a nested `secrets` block:
+```yaml
+password_hash: "$y$j9T$..."
+github_token: "ghp_123..."
+```
+
+Inventory entry:
 
 ```nix
-users = {
-  bas = {
-    # ...
-    secrets = {
-      sopsFile = ./users/secrets/bas_secrets.yml;
-      keys = [ "password_hash" "test" ];
-      userPasswordHashKey = "password_hash"; # must appear in `keys`
-    };
-    # ...
+users.alice = {
+  secrets = {
+    sopsFile = ./users/secrets/alice_secrets.yml;
+    keys = [ "password_hash" "github_token" ];
+    userPasswordHashKey = "password_hash";
   };
 };
 ```
 
-  * `secrets.sopsFile`: Which encrypted file to read.
-  * `secrets.keys`: Which top-level YAML keys to expose via `sops-nix`.
-  * `secrets.userPasswordHashKey`: Which of those keys is the **login password hash**.
+## Per-host secrets
 
-If you don't want a Sops-managed password, set `initialPassword = "changeme";` instead and omit the `secrets` block.
+Example path:
 
------
+```
+hosts/secrets/my-laptop_secrets.yml
+```
 
-## 💾 USB Bootstrap Age key (Snowman key)
+Inventory entry:
 
-For a brand-new machine, this lets it decrypt secrets before it has its own registered SSH key.
+```nix
+hosts.my-laptop.secrets = {
+  sopsFile = ./hosts/secrets/my-laptop_secrets.yml;
+  items = {
+    wireguard-private-key = {
+      key = "wireguard-private-key";
+      owner = "root";
+      group = "root";
+      mode = "0400";
+    };
+  };
+};
+```
 
-### 1. Create a dedicated Age keypair
+---
 
-On your main machine:
+# 💾 Optional: USB Bootstrap Age Key (“Snowman Key”)
+
+This allows a **brand-new machine** to decrypt your secrets *before* it has its own Age key enrolled.
+
+### 1. Generate a Snowman bootstrap key
 
 ```bash
 nix run nixpkgs#age -- age-keygen -o snowman.key
 ```
 
-  * You get `snowman.key` (private) and a public key `age1...`.
-  * Copy the **public key** into your `.sops.yaml` (e.g., as `&snowman_usb`).
-  * Run `sops updatekeys users/secrets/your_file.yml` to apply the new key.
+Put the *public key* into your `.sops.yaml` (e.g. under `&snowman_usb`).
 
-### 2. Prepare your USB drive
+### 2. Prepare the USB
 
-1.  Format a drive with the label `SNOWMANKEY`.
-2.  Copy the **private key** `snowman.key` to the root of the drive.
+1. Format USB with label `SNOWMANKEY`
+2. Copy `snowman.key` (private key) to the root
 
-### 3. Enable bootstrap for a host
-
-In your `inventory.nix`, under your host:
+### 3. Enable in inventory
 
 ```nix
-hosts.my-laptop = {
-  # ...
-  bootstrap.usb = {
-    enable = true;
-    label = "SNOWMANKEY";
-    path = "/mnt/snowman";
-    keyFile = "snowman.key";
-    fsType = "vfat";
-  };
+bootstrap.usb = {
+  enable = true;
+  label = "SNOWMANKEY";
+  path = "/mnt/snowman";
+  keyFile = "snowman.key";
+  fsType = "vfat";
 };
 ```
 
-The Snowman modules will automatically mount this drive and use the key to unlock your Sops secrets at boot.
+### 4. Turn it off after first boot
 
-### 4. After first setup: move away from USB
+After installation:
 
-Once the host is up:
+1. Convert host SSH key to Age:
 
-1.  Get the host's new Age key: `nix run nixpkgs#ssh-to-age -- /etc/ssh/ssh_host_ed25519_key.pub`
-2.  Add that new public key to your `.sops.yaml`.
-3.  Run `sops updatekeys ...` on your secret files.
-4.  In `inventory.nix`, set `bootstrap.usb.enable = false;` for that host.
-5.  Re-deploy. The host is now self-sufficient and no longer needs the USB.
+   ```bash
+   nix run nixpkgs#ssh-to-age -- /etc/ssh/ssh_host_ed25519_key.pub
+   ```
+2. Add new Age key to `.sops.yaml`
+3. Re-encrypt secrets:
+   `sops updatekeys users/secrets/*.yml`
+4. Set:
 
------
+   ```nix
+   bootstrap.usb.enable = false;
+   ```
 
-## 🧑‍💻 For Maintainers (Developing Snowman)
+Now the machine no longer needs the USB.
 
-If you are "dogfooding" (editing the Snowman framework and testing it with your personal config), your workflow is slightly different.
+---
 
-Your setup:
+# 🧑‍💻 For Maintainers (Developing Snowman Itself)
 
-  * **`~/Developer/snowman/`** (This repo)
-  * **`~/Developer/snowman/flake.nix`** (The "distro" flake)
-  * **`~/Developer/snowman/template/`** (Your personal config)
+If you are **editing Snowman's modules** and want to test those changes with your own personal config:
 
-To test your local changes to the `modules/`:
+### 1. Use two separate repos
 
-1.  **Edit `template/flake.nix`:**
-    Make sure the `snowman` input points to your local files, not GitHub.
+* `~/Developer/snowman/` — the engine (this repo)
+* `~/Developer/snowman-config/` — your actual configuration (made from the template)
 
-    ```nix
-    inputs.snowman = {
-      url = "path:.."; # This is the important line
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    ```
+### 2. Temporarily point your config to your local Snowman repo
 
-2.  **Deploy from the root:**
-    Run your deploy commands from the *root* of the `snowman` repo, but point the flake flag at the `template/` directory.
+Inside `snowman-config/flake.nix`:
 
-    ```bash
-    # This builds the 'vm-snowman' host defined in 'template/inventory.nix'
-    # using the 'snowman' modules from the parent directory.
-    nix run nixpkgs#nixos-rebuild -- switch \
-      --flake ./template#vm-snowman \
-      --target-host bas@192.168.122.241 \
-      --use-remote-sudo
-    ```
+```nix
+inputs.snowman.url = "path:../snowman";
+```
+
+This allows live testing of module changes without pushing to GitHub.
+
+### 3. Deploy from *your* config repo (not from Snowman)
+
+```bash
+cd ~/Developer/snowman-config
+
+nix run nixpkgs#nixos-rebuild -- switch \
+  --flake .#my-host \
+  --target-host user@host \
+  --use-remote-sudo
+```
+
+### 4. When satisfied, push updates to GitHub
+
+Then switch your config back to the stable GitHub source:
+
+```nix
+inputs.snowman.url = "github:DarkBones/snowman";
+```
+
+This keeps Snowman pure and reusable for everyone.
