@@ -1,18 +1,10 @@
 { lib, sops-nix, config, inv, currentHost, ... }:
-
 let
   hasHost = builtins.hasAttr currentHost inv.hosts;
   host = if hasHost then inv.hosts.${currentHost} else { };
   hostUsers = if hasHost then host.users else [ ];
 
   usbCfg = host.bootstrap.usb or { enable = false; };
-
-  keyFilePath = if usbCfg.enable then
-    "${usbCfg.path}/${usbCfg.keyFile}"
-  else
-    "/var/lib/sops-nix/key.txt"; # TODO: DRY - and convert to .key
-
-  generateKeyFlag = !usbCfg.enable;
 
   usersWithSecrets =
     lib.filterAttrs (name: u: lib.elem name hostUsers && (u ? secrets.sopsFile))
@@ -35,23 +27,19 @@ let
       };
     }) secretKeys);
 
-  perUserSecrets =
-    lib.foldl' (acc: userName: acc // mkSecretsForUser userName) { }
+  perUserSecrets = lib.foldl' (acc: name: acc // mkSecretsForUser name) { }
     (builtins.attrNames usersWithSecrets);
 
   hostSecrets = config.snowman.hostSecrets or { };
   allSecrets = hostSecrets // perUserSecrets;
 
-  sopsPasswordKeyAssertions = lib.mapAttrsToList (name: u:
-    let
-      keyValid = !(u ? secrets.userPasswordHashKey)
-        || lib.elem u.secrets.userPasswordHashKey (u.secrets.keys or [ ]);
-    in {
-      assertion = keyValid;
-      message = "User ${name}: secrets.userPasswordHashKey '${
-          u.secrets.userPasswordHashKey or "«unset»"
-        }' not found in secrets.keys (${toString (u.secrets.keys or [ ])}).";
-    }) inv.users;
+  sopsPasswordKeyAssertions = lib.mapAttrsToList (name: u: {
+    assertion = !(u ? secrets.userPasswordHashKey)
+      || lib.elem u.secrets.userPasswordHashKey (u.secrets.keys or [ ]);
+    message = "User ${name}: secrets.userPasswordHashKey '${
+        u.secrets.userPasswordHashKey or "«unset»"
+      }' not found in secrets.keys (${toString (u.secrets.keys or [ ])}).";
+  }) inv.users;
 
 in {
   imports = [ sops-nix.nixosModules.sops ];
@@ -59,11 +47,16 @@ in {
   config = lib.mkIf (allSecrets != { }) {
     sops = {
       validateSopsFiles = false;
-      age = {
-        sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
-        keyFile = keyFilePath;
-        generateKey = generateKeyFlag;
-      };
+
+      age = lib.mkMerge [
+        { sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ]; }
+
+        (lib.mkIf usbCfg.enable {
+          keyFile = "${usbCfg.path}/${usbCfg.keyFile}";
+          generateKey = false;
+        })
+      ];
+
       secrets = allSecrets;
     };
 
