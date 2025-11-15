@@ -58,13 +58,9 @@ in {
   };
 
   config = lib.mkIf cfg.enable (lib.mkMerge [
-    # Git/ssh tools are only strictly needed in git mode
-    {
-      home.packages = with pkgs; [ git openssh ];
-      programs.ssh.enable = true;
-    }
-
+    #
     # --- Reproducible mode: use flake input (store path) ---
+    #
     (lib.mkIf hasSourceKey {
       home.activation.dotfilesSync =
         lib.hm.dag.entryAfter [ "writeBoundary" ] ''
@@ -89,8 +85,13 @@ in {
         '';
     })
 
+    #
     # --- Git mode: fall back to git clone/pull at activation time ---
+    #
     (lib.mkIf (!hasSourceKey) {
+      home.packages = with pkgs; [ git openssh ];
+      programs.ssh.enable = true;
+
       home.activation.dotfilesSync =
         lib.hm.dag.entryAfter [ "writeBoundary" ] ''
           set -euo pipefail
@@ -133,7 +134,7 @@ in {
               "$git" -C "$DIR_REAL" sparse-checkout init --cone
             else
               echo "[dotfiles] Updating repo in $DIR_REAL"
-            "$git" -C "$DIR_REAL" fetch --prune
+              "$git" -C "$DIR_REAL" fetch --prune
             fi
 
             if [ ${toString (cfg.sparse != [ ])} = "1" ]; then
