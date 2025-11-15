@@ -2,7 +2,7 @@
 set -euo pipefail
 
 : "${SNOWMAN_REPO:=https://github.com/DarkBones/snowman.git}"
-: "${SNOWMAN_BRANCH:=main-v3-fixes}"
+: "${SNOWMAN_BRANCH:=main-v3}"
 : "${HOST:=vm-snowman}"
 : "${USB_LABEL:=SNOWMANKEY}"
 : "${USB_MOUNT:=/mnt/snowman}"
