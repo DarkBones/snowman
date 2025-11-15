@@ -1,19 +1,19 @@
-{ inv, currentHost, lib, ... }:
+{ inv, currentHost, lib, extraHomeImports ? [ ], ... }:
 let hasHost = builtins.hasAttr currentHost inv.hosts;
 in if !hasHost then
   { }
 else
   let
-    hostUsers = if hasHost then inv.hosts.${currentHost}.users else [ ];
-    selected =
-      lib.filterAttrs (n: u: lib.elem n hostUsers && (u.homeManaged or false))
+    hostUsers =
+      lib.filterAttrs (n: u: lib.elem n (inv.hosts.${currentHost}.users or [ ]))
       inv.users;
   in {
     config = {
-      home-manager.users = lib.genAttrs (builtins.attrNames selected) (name:
-        let u = selected.${name};
+      home-manager.users = lib.genAttrs (builtins.attrNames hostUsers) (name:
+        let u = hostUsers.${name};
         in {
-          imports = [ ./default.nix ] ++ lib.optional (u ? envFile) u.envFile;
+          imports = [ ./default.nix ] ++ extraHomeImports
+            ++ lib.optional (u ? envFile) u.envFile;
 
           home = {
             username = name;
@@ -30,6 +30,6 @@ else
         assertion = !(u ? envFile) || builtins.pathExists u.envFile;
         message =
           "User ${name}: envFile '${toString u.envFile}' does not exist.";
-      }) selected;
+      }) hostUsers;
     };
   }

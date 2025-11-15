@@ -1,3 +1,4 @@
+# TODO: Move this file to `snowman-config` repo
 { lib, pkgs, pkgsUnstable, config, ... }:
 let cfg = config.roles.dev;
 in {
