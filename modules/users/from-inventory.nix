@@ -106,11 +106,6 @@ in {
                 "Inventory: user ${name} sets BOTH SOPS password and initialPassword. Choose one.";
             }
             {
-              assertion = !(!hasSopsPassword && !hasInitial);
-              message =
-                "Inventory: user ${name} has NEITHER SOPS password nor initialPassword. Choose one.";
-            }
-            {
               assertion =
                 config.services.openssh.settings.PasswordAuthentication == false
                 || hasSopsPassword || hasInitial;
@@ -138,10 +133,25 @@ in {
             "Inventory: `${currentHost}.users` must be a non-empty list";
         }
         {
-          assertion = lib.all (n: (lib.length (keysFor users.${n})) > 0)
+          assertion = lib.all (name:
+            let
+              u = users.${name};
+
+              hasInitial = u ? initialPassword;
+              hasSopsPassword = (u ? secrets.sopsFile)
+                && (u ? secrets.userPasswordHashKey)
+                && lib.elem u.secrets.userPasswordHashKey
+                (u.secrets.keys or [ ]);
+
+              hasKeys = (lib.length (keysFor u)) > 0;
+            in hasInitial || hasSopsPassword || hasKeys)
             (builtins.attrNames users);
-          message =
-            "Inventory: each user must provide at least one SSH key (sshPubKeys, sshPubKeyFile or sshPubKeyFiles).";
+
+          message = ''
+            Inventory: each user must provide at least one login method:
+              - SSH key (sshPubKeys / sshPubKeyFile / sshPubKeyFiles), or
+              - password (initialPassword or secrets.userPasswordHashKey).
+          '';
         }
       ];
     }
