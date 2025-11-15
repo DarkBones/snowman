@@ -8,7 +8,6 @@
     home-manager.url = "github:nix-community/home-manager/release-25.05";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
 
-    disko.url = "github:nix-community/disko";
     nixos-hardware.url = "github:NixOS/nixos-hardware";
 
     sops-nix = {
@@ -29,8 +28,7 @@
     # };
   };
 
-  outputs =
-    { self, nixpkgs, home-manager, sops-nix, snowman, disko, ... }@inputs:
+  outputs = { self, nixpkgs, home-manager, sops-nix, snowman, ... }@inputs:
     let
       lib = nixpkgs.lib;
 
@@ -42,7 +40,6 @@
         # bas = inputs.bas-dotfiles;
       };
 
-      # Standard Snowman setup
       makePkgs = system:
         import nixpkgs {
           inherit system;
@@ -55,7 +52,7 @@
         };
 
       mkNixosSpecialArgs = name: attrs: {
-        inherit home-manager inv sops-nix dotfilesSources disko;
+        inherit home-manager inv sops-nix dotfilesSources;
         pkgsUnstable = makePkgsUnstable attrs.system;
         modulesPath = "${nixpkgs}/nixos/modules";
         currentHost = name;
@@ -68,20 +65,10 @@
           system = attrs.system;
           specialArgs = mkNixosSpecialArgs name attrs;
           modules = [
-            # Import the modules from the Snowman input
             snowman.nixosModules.default
-
             home-manager.nixosModules.home-manager
-
             ./hardware-configuration.nix
-
-            # (Optional) A place for your host-specific .nix files
-            # ./hosts/${name}.nix
           ];
         };
-    in {
-      nixosConfigurations = lib.mapAttrs mkHost inv.hosts;
-
-      # ... (homeConfigurations, etc., you can extend this)
-    };
+    in { nixosConfigurations = lib.mapAttrs mkHost inv.hosts; };
 }

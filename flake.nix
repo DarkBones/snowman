@@ -7,7 +7,6 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
     home-manager.url = "github:nix-community/home-manager/release-25.05";
     sops-nix.url = "github:mic92/sops-nix";
-    disko.url = "github:nix-community/disko";
   };
 
   outputs = inputs@{ self, nixpkgs, ... }: {

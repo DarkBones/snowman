@@ -1,8 +1,7 @@
-{ lib, pkgsUnstable, dotfilesSources, inv, currentHost, disko, ... }:
+{ lib, pkgsUnstable, dotfilesSources, inv, currentHost, ... }:
 let
   hasHost = builtins.hasAttr currentHost inv.hosts;
   host = if hasHost then inv.hosts.${currentHost} else { };
-  diskoOn = host.provision.disk.enable or false;
 
   here = ./.;
   entries = builtins.readDir here;
@@ -18,7 +17,7 @@ in {
     ./hardware/from-inventory.nix
     ./home/from-inventory.nix
     ./users/from-inventory.nix
-  ] ++ moduleFiles ++ lib.optional diskoOn disko.nixosModules.disko;
+  ] ++ moduleFiles;
 
   config = {
     home-manager.extraSpecialArgs = { inherit pkgsUnstable dotfilesSources; };
