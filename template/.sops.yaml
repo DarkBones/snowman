@@ -1,0 +1,29 @@
+keys:
+  - &users:
+    - &usb age1...<your age public key from the SNOWMANKEY USB drive>
+    - &someuser age1...<public key of a user>
+  - &hosts:
+    - &nix-vm age1...<age key derrived from host's public ssh key>
+creation_rules:
+  # Per-user secrets files, e.g. users/secrets/bas_secrets.yaml
+  - path_regex: ^users\/secrets\/.+_secrets\.(yml|yaml)$
+    key_groups:
+      - age:
+          - *usb
+          - *someuser
+          - *nix-vm
+
+  # Per-host secrets files, e.g. hosts/secrets/vm-snowman_secrets.yaml
+  - path_regex: ^hosts\/secrets\/.+_secrets\.(yml|yaml)$
+    key_groups:
+      - age:
+          - *usb
+          - *someuser
+          - *nix-vm
+
+  - path_regex: ^secrets\.(yml|yaml)$
+    key_groups:
+      - age:
+          - *usb
+          - *someuser
+          - *nix-vm
