@@ -276,11 +276,11 @@
       ############################################################
       roles = {
         dev.enable = true;
-        ssh.enable = true;
+        # ssh.enable = true; # Optional, `true` when omitted
         secrets.enable = true;
 
         dotfiles = {
-          enable = true;
+          enable = false;
 
           ########################################################
           ## MODE SELECTION
@@ -323,10 +323,10 @@
           ## By default in the template, repo is empty so nothing
           ## is cloned until you fill it in.
           ########################################################
-          repo = ""; # e.g. "git@github.com:YourName/dotfiles.git";
+          repo = "github:YourUser/dotfiles";
           dir = "Developer/dotfiles";
           branch = "main";
-          sparse = [ ];
+          sparse = [ "nvim" "zsh" ];
 
           ########################################################
           ## SHARED SETTINGS (both modes)
@@ -335,12 +335,11 @@
           ########################################################
           linkMap = {
             # Example mappings:
-            # ".config/nvim" = "nvim/.config/nvim";
-            # ".zsh"         = "zsh/.zsh";
-            # ".zshrc"       = "zsh/.zshrc";
+            # "path/relative/to/home" = ".path/on/the/dotfiles/repo"
+            # ".config/nvim"          = "nvim/.config/nvim";
+            # ".zsh"                  = "zsh/.zsh";
+            # ".zshrc"                = "zsh/.zshrc";
           };
-
-          # TODO (future): deployTokenKey / deployKeySecret for private SSH access
         };
       };
     };

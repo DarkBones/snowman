@@ -1,52 +1,22 @@
-# BEFORE RELEASE CHECKLIST
-
-- [ ] Convert all existing encrypted secrets with bogus values
-- [ ] Create kill-switch in case key is leaked
-- [ ] Comment out bas-dotfiles flake input as an optional example over pulling dotfiles at activation time
-
-# Snowman – minimal spine
-
-This repo is a **NixOS spine** that:
-
-- builds hosts from a central `inventory.nix`,
-- provisions users and their home-manager configs,
-- manages secrets via **sops-nix** (per-user),
-- optionally bootstraps secrets using a **USB Age key** (“Snowman key”).
-
-It’s meant to be **reproducible**, **host-agnostic**, and **inventory-driven**.
-
----
-
-## ✅ Before release checklist
-
-- [ ] All **sops secrets use bogus/demo values** (no real API keys or passwords).
-- [ ] Each host in `inventory.nix` has:
-  - [ ] `mutableUsers = false` if you want full declarative user mgmt.
-  - [ ] Correct `hardware.*` and `provision.*` data.
-- [ ] `.sops.yaml` includes **only the Age recipients you actually own**.
-- [ ] USB bootstrap key is documented & safely backed up.
-
----
-
 # Snowman ⛄
 
 Snowman is an **inventory-driven NixOS framework** designed to be a reusable “engine” for your own personal, reproducible NixOS configuration.
 
 It is built on a **distro + template** model:
 
-* **The Snowman Repo (this one):**
+* **The Snowman Repo (this one):**  
   The *engine*. It provides all core modules for users, hardware, secrets, and roles.
 
-* **Your Config Repo (created from the template):**
+* **Your Config Repo (created from the template):**  
   The *car*. This contains your personal `inventory.nix`, secrets, user definitions, host definitions, dotfiles settings, etc.
 
 You own your config repo forever. Snowman stays the clean, reusable engine underneath.
 
 ---
 
-# 🚀 Quick Start: Create Your Personal Config Repo
+# 🚀 Step 1 — Create Your Personal Config Repo
 
-**Do not clone this repo directly for personal use.**
+**Do not clone this repo directly for personal use.**  
 Instead, generate your *own* repo from Snowman's template.
 
 ### Option A: GitHub UI
@@ -58,7 +28,7 @@ Click the green **“Use this template”** button on this repo’s GitHub page.
 ```bash
 nix flake new -t github:DarkBones/snowman#default my-personal-config
 cd my-personal-config
-```
+````
 
 This creates your own fresh Snowman-powered configuration directory.
 
@@ -71,30 +41,131 @@ Your new `my-personal-config/` directory is now your “forever config.”
 
 Inside it:
 
-1. **Edit `inventory.nix`:**
-   This is the heart of Snowman.
+## 1. Edit `inventory.nix`
 
-   * Delete or comment out the example host `vm-snowman`
-   * Add your own host (e.g. `my-laptop`)
-   * Delete or comment out the example user `bas`
-   * Add your own user (e.g. `alice`)
+This is the heart of Snowman.
 
-2. **Add your files:**
+* Delete or comment out the example host `vm-snowman`
+* Add your own host (e.g. `my-laptop`)
+* Delete or comment out the example user `bas`
+* Add your own user (e.g. `alice`)
 
-   * Put your user’s SSH key into:
-     `users/keys/<name>.pub`
-   * Create `hosts/secrets/<host>_secrets.yml` (encrypted with sops)
-   * Create `users/secrets/<name>_secrets.yml` (also sops-encrypted)
-   * Update `.sops.yaml` with *your* Age public keys
-     (see Secrets section below)
+Each host and user lives under:
 
-3. **Commit your repo:**
+```nix
+hosts = { ... };
+users = { ... };
+```
 
-   ```bash
-   git add .
-   git commit -m "Initial Snowman setup"
-   git push
-   ```
+See the comments in `template/inventory.nix` for detailed examples.
+
+## 2. Choose a login method for each user (required)
+
+For **every user listed in `hosts.<host>.users`**, Snowman enforces:
+
+> Each user must provide at least one login method:
+>
+> * an **SSH key** (`sshPubKeys` / `sshPubKeyFile` / `sshPubKeyFiles`), **or**
+> * a **password** (`initialPassword` or sops secrets + `userPasswordHashKey`).
+
+Concretely, in `users.<name>` you can:
+
+### Option A: SSH-only login
+
+```nix
+users.alice = {
+  uid = 1000;
+  groups = [ "wheel" ];
+  shell = "zsh";
+
+  # Pick ONE of these styles:
+  sshPubKeys = [ "ssh-ed25519 AAAA... alice@laptop" ];
+  # or:
+  # sshPubKeyFile = ./users/keys/alice.pub;
+  # or:
+  # sshPubKeyFiles = [ ./users/keys/alice-laptop.pub ./users/keys/alice-desktop.pub ];
+};
+```
+
+This user:
+
+* passes Snowman’s “login method” assertion (has keys)
+* can SSH in (because OpenSSH is configured as publickey-only)
+* does **not** require any password to be configured
+
+### Option B: Password-only login
+
+```nix
+users.alice = {
+  uid = 1000;
+  groups = [ "wheel" ];
+  shell = "zsh";
+
+  # Simple (non-sops) initial password:
+  initialPassword = "changeme";
+};
+```
+
+or with sops-managed password hash:
+
+```nix
+users.alice = {
+  uid = 1000;
+  groups = [ "wheel" ];
+  shell = "zsh";
+
+  secrets = {
+    sopsFile = ./users/secrets/alice_secrets.yml;
+    keys = [ "password_hash" ];
+    userPasswordHashKey = "password_hash";
+  };
+};
+```
+
+This user:
+
+* passes Snowman’s “login method” assertion (has a password)
+* can log in locally via TTY
+* **cannot SSH in** by default (SSH is publickey-only; see SSH behavior below)
+
+### Option C: Both SSH + password
+
+You can combine keys and passwords. Snowman only enforces that at least one method exists; having both is fine.
+
+## 3. (Optional) Wire up secrets & extra files
+
+Depending on what you actually need, you can optionally:
+
+* Put your user’s SSH public key(s) into:
+
+  ```text
+  users/keys/<name>.pub
+  ```
+
+  and reference them via `sshPubKeyFile` or `sshPubKeyFiles`.
+
+* Create **per-host** secrets:
+
+  ```text
+  hosts/secrets/<host>_secrets.yml
+  ```
+
+* Create **per-user** secrets:
+
+  ```text
+  users/secrets/<name>_secrets.yml
+  ```
+
+* Update `.sops.yaml` with *your* Age public keys
+  (see Secrets section below for details).
+
+## 4. Commit your repo
+
+```bash
+git add .
+git commit -m "Initial Snowman setup"
+git push
+```
 
 Your config repo is now ready for installation.
 
@@ -120,6 +191,8 @@ Your config repo is now ready for installation.
    nix-shell -p git
    nixos-install --flake git@github.com:YourName/my-personal-config#my-laptop
    ```
+
+   (You can also use an HTTPS URL if you prefer.)
 
 6. If you enabled the optional USB bootstrap (see below),
    plug in the `SNOWMANKEY` when prompted by sops-nix.
@@ -155,11 +228,11 @@ Snowman uses:
 * **sops-nix** to expose them to Nix at build time
 * **Age keys** as recipients
 
-## Per-user secrets
+## Per-user secrets (optional)
 
 Example path:
 
-```
+```text
 users/secrets/alice_secrets.yml
 ```
 
@@ -174,6 +247,10 @@ Inventory entry:
 
 ```nix
 users.alice = {
+  uid = 1000;
+  groups = [ "wheel" ];
+  shell = "zsh";
+
   secrets = {
     sopsFile = ./users/secrets/alice_secrets.yml;
     keys = [ "password_hash" "github_token" ];
@@ -182,11 +259,18 @@ users.alice = {
 };
 ```
 
-## Per-host secrets
+Snowman will:
+
+* Expose each entry in `keys` as a sops secret at build time
+* Use `userPasswordHashKey` as `users.users.<name>.hashedPasswordFile`
+
+This **counts as a valid login method** for the user (password-based login).
+
+## Per-host secrets (optional)
 
 Example path:
 
-```
+```text
 hosts/secrets/my-laptop_secrets.yml
 ```
 
@@ -197,7 +281,7 @@ hosts.my-laptop.secrets = {
   sopsFile = ./hosts/secrets/my-laptop_secrets.yml;
   items = {
     wireguard-private-key = {
-      key = "wireguard-private-key";
+      key = "wireguard-private-key"; # YAML key path
       owner = "root";
       group = "root";
       mode = "0400";
@@ -206,11 +290,15 @@ hosts.my-laptop.secrets = {
 };
 ```
 
-## 🔑 SSH Login Keys (`users/keys/`)
+Snowman maps these to `sops.secrets` entries and writes them as files with the given owner/group/mode.
+
+---
+
+# 🔑 SSH Login Keys (`users/keys/`)
 
 Snowman separates *user login keys* from *secrets* to make your configuration easier to understand.
 
-### What goes in `users/keys/`?
+## What goes in `users/keys/`?
 
 This directory holds **SSH public keys** that allow users to log into your Snowman-managed machines.
 
@@ -223,7 +311,7 @@ Examples:
 
 These are **not secrets** — public keys are safe to store in Git.
 
-```
+```text
 users/
   keys/
     alice.pub
@@ -231,34 +319,42 @@ users/
     yubikey.pub
 ```
 
-### How to use these keys
+## How to use these keys
 
-Inside `inventory.nix`, you reference them using `sshPubKeyFile`:
+Inside `inventory.nix`, you reference them using `sshPubKeyFile` or `sshPubKeyFiles`:
 
 ```nix
 users.alice = {
   uid = 1000;
   groups = [ "wheel" ];
   shell = "zsh";
+
+  # Single file:
   sshPubKeyFile = ./users/keys/alice.pub;
+
+  # or multiple:
+  # sshPubKeyFiles = [
+  #   ./users/keys/alice-laptop.pub
+  #   ./users/keys/alice-desktop.pub
+  # ];
 };
 ```
 
-Or, if you prefer inline keys, you can use:
+Alternatively, inline keys:
 
 ```nix
 sshPubKeys = [ "ssh-ed25519 AAAA... alice@laptop" ];
 ```
 
-Both forms populate:
+All forms are merged and end up in:
 
-```
+```text
 ~/.ssh/authorized_keys
 ```
 
 for that user.
 
-### Relationship to sops/Age
+## Relationship to sops/Age
 
 `users/keys/` is **not** related to `.sops.yaml`. That file controls:
 
@@ -272,13 +368,117 @@ Use:
 * `users/keys/*` → **public SSH keys for login**
 * `users/secrets/*.yml` → **sops-encrypted files for secrets**, like password hashes or tokens
 
-### Summary
+---
 
-* `users/keys/` contains **public keys** for login
-* Refer to them via `sshPubKeyFile` in `inventory.nix`
-* These keys end up in the user’s `authorized_keys`
-* They are not encrypted and not part of sops
-* They work seamlessly with the Snowman engine
+# 🔒 Authentication & SSH Behavior
+
+This section summarizes how Snowman wires authentication and SSH.
+
+## Inventory rule (per user)
+
+For each user that appears in `hosts.<host>.users`, Snowman enforces:
+
+> Each user must provide at least one login method:
+>
+> * **SSH key** (`sshPubKeys` / `sshPubKeyFile` / `sshPubKeyFiles`), or
+> * **Password** (`initialPassword` or `secrets.userPasswordHashKey`).
+
+If neither is configured, evaluation fails with a clear error message.
+
+## OpenSSH defaults
+
+Snowman configures SSH like this (simplified):
+
+```nix
+services.openssh = {
+  enable = true;
+  openFirewall = true;
+
+  settings = {
+    PermitRootLogin = "no";
+    PasswordAuthentication = false;
+    KbdInteractiveAuthentication = false;
+    AuthenticationMethods = "publickey";
+    AllowUsers = [ ...users from hosts.<host>.users... ];
+    # plus various hardened defaults
+  };
+};
+```
+
+That means:
+
+* SSH is **publickey-only** by default
+* Users **without** SSH keys **cannot** SSH in
+* Users with passwords but no keys can still log in on **local TTY**, but not via SSH
+
+## Behavior matrix
+
+| SSH keys configured? | Password configured? | SSH password auth enabled? | SSH login?                  | Local TTY login?                     |
+| -------------------- | -------------------- | -------------------------- | --------------------------- | ------------------------------------ |
+| ✅ Yes                | ❌ No                 | default (`false`)          | ✅ Yes (key)                 | ✅ Yes (if allowed by NixOS defaults) |
+| ❌ No                 | ✅ Yes                | default (`false`)          | ❌ No (key-only)             | ✅ Yes                                |
+| ✅ Yes                | ✅ Yes                | default (`false`)          | ✅ Yes (key)                 | ✅ Yes                                |
+| ❌ No                 | ❌ No                 | any                        | ❌ Fails (Snowman assertion) | ❌ Fails (config build error)         |
+
+If you intentionally want SSH password logins, you must:
+
+1. Override the SSH settings in your *host config* (not in Snowman engine), e.g.:
+
+   ```nix
+   services.openssh.settings.PasswordAuthentication = true;
+   services.openssh.settings.AuthenticationMethods = "publickey,password publickey,keyboard-interactive";
+   ```
+
+2. Ensure your users have passwords (`initialPassword` or sops-managed hash).
+
+Snowman will then assert that SSH *allows* passwords **only if** each SSH-enabled user actually has one, to avoid “login impossible” states.
+
+---
+
+# 🧩 Home Roles (dev, ssh, secrets, dotfiles)
+
+Home-manager roles for a user are defined in `inventory.nix` under `users.<name>.roles`.
+
+Example:
+
+```nix
+users.alice = {
+  uid = 1000;
+  groups = [ "wheel" ];
+  shell = "zsh";
+
+  roles = {
+    dev.enable = true;
+    ssh.enable = true;
+    secrets.enable = true;
+
+    dotfiles = {
+      enable = true;
+      # sourceKey / repo / linkMap etc.
+    };
+  };
+};
+```
+
+Current roles:
+
+* `roles.dev.enable`
+  Example dev tool role (from your personal config’s `home/roles/dev.nix`).
+
+* `roles.ssh.enable`
+  Ensures a **user-level outbound SSH key** exists at `$HOME/.ssh/id_ed25519`.
+  This is for the user to SSH *out* from the machine, not for logging in.
+
+* `roles.secrets.enable`
+  Includes the `sops` CLI (from `pkgsUnstable`) in the user’s environment.
+
+* `roles.dotfiles.*`
+  Manages your dotfiles either:
+
+  * via **pinned mode** (flake input mapped through `dotfilesSources`), or
+  * via **git mode** (clone/pull at activation time).
+
+These roles are **opt-in** (`enable = true` in the inventory example); if you omit them or set `enable = false`, Snowman simply won’t apply that home-manager role.
 
 ---
 
@@ -286,7 +486,7 @@ Use:
 
 This allows a **brand-new machine** to decrypt your secrets *before* it has its own Age key enrolled.
 
-### 1. Generate a Snowman bootstrap key
+## 1. Generate a Snowman bootstrap key
 
 ```bash
 nix run nixpkgs#age -- age-keygen -o snowman.key
@@ -294,12 +494,12 @@ nix run nixpkgs#age -- age-keygen -o snowman.key
 
 Put the *public key* into your `.sops.yaml` (e.g. under `&snowman_usb`).
 
-### 2. Prepare the USB
+## 2. Prepare the USB
 
 1. Format USB with label `SNOWMANKEY`
 2. Copy `snowman.key` (private key) to the root
 
-### 3. Enable in inventory
+## 3. Enable in inventory
 
 ```nix
 bootstrap.usb = {
@@ -311,7 +511,9 @@ bootstrap.usb = {
 };
 ```
 
-### 4. Turn it off after first boot
+When this is enabled, Snowman configures sops-nix to **not** auto-generate an Age key and instead use the USB key file.
+
+## 4. Turn it off after first boot
 
 After installation:
 
@@ -320,16 +522,23 @@ After installation:
    ```bash
    nix run nixpkgs#ssh-to-age -- /etc/ssh/ssh_host_ed25519_key.pub
    ```
-2. Add new Age key to `.sops.yaml`
+
+2. Add the new Age key to `.sops.yaml`
+
 3. Re-encrypt secrets:
-   `sops updatekeys users/secrets/*.yml`
+
+   ```bash
+   sops updatekeys users/secrets/*.yml
+   sops updatekeys hosts/secrets/*.yml
+   ```
+
 4. Set:
 
    ```nix
    bootstrap.usb.enable = false;
    ```
 
-Now the machine no longer needs the USB.
+Now the machine no longer needs the USB. Snowman will auto-generate and manage `/var/lib/sops-nix/key.txt` instead.
 
 ---
 
@@ -337,12 +546,12 @@ Now the machine no longer needs the USB.
 
 If you are **editing Snowman's modules** and want to test those changes with your own personal config:
 
-### 1. Use two separate repos
+## 1. Use two separate repos
 
 * `~/Developer/snowman/` — the engine (this repo)
 * `~/Developer/snowman-config/` — your actual configuration (made from the template)
 
-### 2. Temporarily point your config to your local Snowman repo
+## 2. Temporarily point your config to your local Snowman repo
 
 Inside `snowman-config/flake.nix`:
 
@@ -352,7 +561,7 @@ inputs.snowman.url = "path:../snowman";
 
 This allows live testing of module changes without pushing to GitHub.
 
-### 3. Deploy from *your* config repo (not from Snowman)
+## 3. Deploy from *your* config repo (not from Snowman)
 
 ```bash
 cd ~/Developer/snowman-config
@@ -363,7 +572,7 @@ nix run nixpkgs#nixos-rebuild -- switch \
   --use-remote-sudo
 ```
 
-### 4. When satisfied, push updates to GitHub
+## 4. When satisfied, push updates to GitHub
 
 Then switch your config back to the stable GitHub source:
 
