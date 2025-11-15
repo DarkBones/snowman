@@ -49,11 +49,13 @@ in {
       validateSopsFiles = false;
 
       age = lib.mkMerge [
-        { sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ]; }
+        {
+          sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
+          generateKey = false;
+        }
 
         (lib.mkIf usbCfg.enable {
           keyFile = "${usbCfg.path}/${usbCfg.keyFile}";
-          generateKey = false;
         })
       ];
 
