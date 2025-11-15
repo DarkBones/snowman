@@ -86,6 +86,11 @@ in {
                 "Inventory: user ${name} sets BOTH SOPS password and initialPassword. Choose one.";
             }
             {
+              assertion = !(!hasSopsPassword && !hasInitial);
+              message =
+                "Inventory: user ${name} has NEITHER SOPS password nor initialPassword. Choose one.";
+            }
+            {
               assertion =
                 config.services.openssh.settings.PasswordAuthentication == false
                 || hasSopsPassword || hasInitial;
