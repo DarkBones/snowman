@@ -17,7 +17,8 @@
     };
 
     snowman = {
-      url = "github:DarkBones/snowman";
+      # url = "github:DarkBones/snowman";
+      url = "path:..";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
@@ -28,7 +29,8 @@
     # };
   };
 
-  outputs = { self, nixpkgs, home-manager, sops-nix, snowman, disko, ... }@inputs:
+  outputs =
+    { self, nixpkgs, home-manager, sops-nix, snowman, disko, ... }@inputs:
     let
       lib = nixpkgs.lib;
 

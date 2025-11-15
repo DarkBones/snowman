@@ -28,549 +28,220 @@ It’s meant to be **reproducible**, **host-agnostic**, and **inventory-driven**
 
 ---
 
-## 🔐 Secrets model (high level)
+# Snowman ⛄
+
+Snowman is an inventory-driven NixOS framework designed to be a reusable "engine" for your own personal NixOS configuration.
+
+It is built on a "distro" and "template" model:
+
+  * **The Snowman Repo (this one):** The "engine." It provides all the core `modules/` for handling users, hardware, and secrets.
+  * **Your Config Repo (yours):** The "car." You create this from the `template/` in this repo. It's where your personal `inventory.nix`, secret files, and host definitions live.
+
+## 🚀 Quick Start: The New User Workflow
+
+This is the official workflow for a new user starting a "Snowman-powered" configuration.
+
+### 1. Create Your Personal Config Repo
+
+**Do not clone this repo.** Instead, use it as a template to create your *own* new, private repository.
+
+You can click the green **"Use this template"** button on this repo's GitHub page.
+
+Or, from your terminal:
+
+```bash
+nix flake new -t github:DarkBones/snowman my-personal-config
+cd my-personal-config
+```
+
+### 2. Configure Your System
+
+Your new `my-personal-config` directory is now your "forever" config. All your edits happen here.
+
+1.  **Edit `inventory.nix`:** This is your main file.
+      * Delete or comment out the example `vm-snowman` host.
+      * Add your new host (e.g., `my-laptop`).
+      * Delete or comment out the example `bas` user.
+      * Add your new user (e.g., `alice`).
+2.  **Add Your Files:**
+      * Add your user's SSH public key to `users/keys/`.
+      * Create `hosts/secrets/my-laptop_secrets.yml` and `users/secrets/alice_secrets.yml` using `sops`.
+      * Update `.sops.yaml` with *your* Age public keys. (See the "Secrets Management" section below).
+3.  **Commit:** `git add .`, `git commit -m "Initial config for my-laptop"`, and `git push` to your new repo.
+
+### 3. Install a New Machine
+
+1.  Boot the target machine from the **official NixOS minimal ISO**.
+
+2.  Connect to the internet and partition your drives.
+
+3.  Mount your new root filesystem to `/mnt`. (e.g., `mount /dev/sda1 /mnt`).
+
+4.  Run `nixos-install`, pointing it at *your* new repo and host:
+
+    ```bash
+    # (Inside the ISO environment)
+    nix-shell -p git
+    nixos-install --flake git@github.com:YourName/my-personal-config#my-laptop
+    ```
+
+5.  If you're using the USB key method, `sops-nix` will pause and wait. Plug in your `SNOWMANKEY` USB to continue.
+
+6.  `reboot` when finished.
+
+### 4. Deploy Updates
+
+To push updates to your machine *after* it's been installed, run this from your main (Arch/Mac) development machine:
+
+```bash
+# Deploys the 'my-laptop' config from your flake
+nix run nixpkgs#nixos-rebuild -- switch \
+  --flake path:/path/to/my-personal-config#my-laptop \
+  --target-host alice@my-laptop-ip \
+  --use-remote-sudo
+```
+
+-----
+
+## 🔐 Secrets Management (Sops)
+
+All file paths below are relative to **your personal config repo** (the one you made from the template).
+
+### Secrets model (high level)
 
 Snowman uses:
 
-- **[sops](https://github.com/getsops/sops)** for editing encrypted YAML files.
-- **[sops-nix](https://github.com/Mic92/sops-nix)** to decrypt them at boot.
-- **Age** keys as recipients (some derived from SSH keys, some standalone).
+  * **[sops](https://github.com/getsops/sops)** for editing encrypted YAML files.
+  * **[sops-nix](https://github.com/Mic92/sops-nix)** to decrypt them at boot.
+  * **Age** keys as recipients.
 
-Currently, secrets are:
+Secrets are:
 
-- stored per-user in `users/secrets/<user>_secrets.yml`,
-- encrypted according to rules in `.sops.yaml`,
-- made available on the machine via `sops-nix`,
-- wired into NixOS via the **nested** `secrets` attribute in `inventory.nix` (per user).
+  * Stored per-user (e.g., `users/secrets/<user>_secrets.yml`) and per-host (e.g., `hosts/secrets/<host>_secrets.yml`).
+  * Encrypted according to rules in `.sops.yaml`.
+  * Wired into NixOS via the `secrets` attribute in `inventory.nix`.
 
-Later you can add per-host secrets with a similar pattern.
+### Per-user secrets files
 
----
-
-## 🧾 Per-user secrets files
-
-### Where secrets live
-
-For each user that needs secrets, you have:
-
-```text
-users/secrets/<name>_secrets.yml   # encrypted with sops
-````
+For each user, you have:
+`users/secrets/<name>_secrets.yml` \# encrypted with sops
 
 Example: `users/secrets/bas_secrets.yml`
 
-The file is a YAML mapping of keys → secret values, e.g.:
-
 ```yaml
 # users/secrets/bas_secrets.yml (edited via `sops`)
-password_hash: "$y$j9T$..."    # e.g. mkpasswd --method=yescrypt
+password_hash: "$y$j9T$..."
 test: "some-random-test-secret"
-github_pat: "ghp_..."
 ```
-
-> 🔒 What’s actually committed is an encrypted blob; the above is just the logical shape.
 
 ### How it’s wired from inventory
 
-In `inventory.nix` the **user** now has a nested `secrets` block:
+In `inventory.nix`, the **user** has a nested `secrets` block:
 
 ```nix
 users = {
   bas = {
-    uid         = 1000;
-    homeManaged = true;
-    groups      = [ "wheel" ];
-    shell       = "zsh";
-    sshPubKeys  = [ (builtins.readFile ./users/keys/bas-arch.pub) ];
-
+    # ...
     secrets = {
-      sopsFile            = ./users/secrets/bas_secrets.yml;
-      keys                = [ "password_hash" "test" ];
+      sopsFile = ./users/secrets/bas_secrets.yml;
+      keys = [ "password_hash" "test" ];
       userPasswordHashKey = "password_hash"; # must appear in `keys`
     };
-
-    envFile = ./users/env/bas.nix;
-
-    roles = {
-      dev.enable     = true;
-      ssh.enable     = true;
-      secrets.enable = true;
-
-      dotfiles = {
-        enable = true;
-
-        # Git-based mode (non-reproducible but simple)
-        repo   = "git@github.com:DarkBones/.dotfiles.git";
-        dir    = "Developer/dotfiles";
-        branch = "nix";
-        sparse = [ "nvim" "zsh" ];
-
-        # Shared for both git-mode and pinned-mode:
-        linkMap = {
-          ".config/nvim" = "nvim/.config/nvim";
-          ".zsh"         = "zsh/.zsh";
-          ".zshrc"       = "zsh/.zshrc";
-        };
-
-        # Optional (future): `sourceKey` for pinned flake input mode
-      };
-    };
+    # ...
   };
 };
 ```
 
-Meaning:
+  * `secrets.sopsFile`: Which encrypted file to read.
+  * `secrets.keys`: Which top-level YAML keys to expose via `sops-nix`.
+  * `secrets.userPasswordHashKey`: Which of those keys is the **login password hash**.
 
-* `secrets.sopsFile` – which encrypted file to read for this user.
-* `secrets.keys` – which top-level YAML keys to expose via `sops-nix`.
-* `secrets.userPasswordHashKey` – which of those keys is used as the **login password hash**.
+If you don't want a Sops-managed password, set `initialPassword = "changeme";` instead and omit the `secrets` block.
 
-The wiring then looks like this:
+-----
 
-* `modules/sops.nix` builds:
+## 💾 USB Bootstrap Age key (Snowman key)
 
-  ```nix
-  sops.secrets = {
-    password_hash = {
-      sopsFile = ./users/secrets/bas_secrets.yml;
-      format   = "yaml";
-      key      = "password_hash";
-      owner    = "bas";
-      group    = "bas";
-      mode     = "0400";
-    };
-    test = { ... };
-  };
-  ```
-
-* `modules/users/from-inventory.nix` uses:
-
-  ```nix
-  users.users.bas.hashedPasswordFile = config.sops.secrets.${passwordKey}.path;
-  ```
-
-where `passwordKey` is `secrets.userPasswordHashKey`.
-
-If you **don’t** want to use sops for a password, you can instead set:
-
-```nix
-initialPassword = "changeme";
-```
-
-and omit `secrets.userPasswordHashKey`. There are assertions to catch illegal combos, e.g.:
-
-* user sets both sops password and `initialPassword`,
-* `userPasswordHashKey` is not in `secrets.keys`.
-
----
-
-## ⚙️ How sops-nix is hooked up
-
-The sops integration lives in `modules/sops.nix` and, simplified, does:
-
-```nix
-imports = [ sops-nix.nixosModules.sops ];
-
-config = lib.mkIf (perUserSecrets != { }) {
-  sops = {
-    validateSopsFiles = true;
-
-    age = {
-      sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
-      keyFile     = keyFilePath;   # depends on USB bootstrap
-      generateKey = generateKeyFlag;
-    };
-
-    secrets = perUserSecrets;      # built from inventory.users.<name>.secrets
-  };
-
-  assertions = sopsPasswordKeyAssertions;
-};
-```
-
-Where:
-
-* `perUserSecrets` is constructed from `inventory.nix`:
-
-  ```nix
-  users.bas.secrets = {
-    sopsFile            = ./users/secrets/bas_secrets.yml;
-    keys                = [ "password_hash" "test" ];
-    userPasswordHashKey = "password_hash";
-  };
-  ```
-
-* For each user, `modules/sops.nix` creates one `sops.secrets.<key>` entry per listed key.
-
-* `modules/users/from-inventory.nix` then consumes those secrets to set:
-
-  * `users.users.<name>.hashedPasswordFile` (if `userPasswordHashKey` is set),
-  * or `initialPassword` as a fallback.
-
----
-
-## 🧩 .sops.yaml structure
-
-`.sops.yaml` tells `sops` *which Age keys* to use for which files.
-
-Example (simplified):
-
-```yaml
-keys:
-  - &users
-    - &bas age1...
-  - &hosts
-    - &nix_vm age1a...
-    - &arch   age1b...
-  # You can also add a USB key:
-  # - &usb
-  #   - &snowman_usb age1c...
-
-creation_rules:
-  # Per-user secrets, e.g. users/secrets/bas_secrets.yml
-  - path_regex: ^users\/secrets\/.+_secrets\.(yml|yaml)$
-    key_groups:
-      - age:
-          - *bas
-          - *nix_vm
-          - *arch
-          # - *snowman_usb   # optional, if you want USB to decrypt too
-```
-
-When you run:
-
-```bash
-sops users/secrets/bas_secrets.yml
-```
-
-sops will:
-
-* match the `path_regex`,
-* encrypt to the listed Age recipients,
-* allow decryption on any machine that has one of those private keys.
-
----
-
-## 💾 USB bootstrap Age key (Snowman key)
-
-When setting up a **brand-new machine or VM**, it might:
-
-* not have its SSH host key registered as an Age recipient yet,
-* but you still want it to decrypt your per-user sops secrets.
-
-Snowman supports a **USB bootstrap key**:
-
-* USB is labeled consistently (e.g. `SNOWMANKEY`),
-* contains a dedicated Age private key (e.g. `snowman.key`),
-* Snowman mounts it and points `sops.age.keyFile` at it during boot.
+For a brand-new machine, this lets it decrypt secrets before it has its own registered SSH key.
 
 ### 1. Create a dedicated Age keypair
 
 On your main machine:
 
 ```bash
-# With Nix installed:
 nix run nixpkgs#age -- age-keygen -o snowman.key
 ```
 
-You’ll see something like:
-
-```text
-# created: 2025-11-08T20:32:41+01:00
-# public key: age1xyz...
-```
-
-* Keep `snowman.key` **private**, store it on a USB key.
-* Copy the **public key** into `.sops.yaml` (e.g. as `&snowman_usb`).
-
-Example snippet:
-
-```yaml
-keys:
-  - &usb
-    - &snowman_usb age1xyz...
-
-creation_rules:
-  - path_regex: ^users\/secrets\/.+_secrets\.(yml|yaml)$
-    key_groups:
-      - age:
-          - *bas
-          - *nix_vm
-          - *arch
-          - *snowman_usb   # now USB can decrypt these secrets too
-```
+  * You get `snowman.key` (private) and a public key `age1...`.
+  * Copy the **public key** into your `.sops.yaml` (e.g., as `&snowman_usb`).
+  * Run `sops updatekeys users/secrets/your_file.yml` to apply the new key.
 
 ### 2. Prepare your USB drive
 
-1. Format or reuse a small drive.
-
-2. Give the partition the label used in `inventory.nix` (default here: `SNOWMANKEY`), e.g. for FAT32:
-
-   ```bash
-   sudo fatlabel /dev/sdX1 SNOWMANKEY
-   ```
-
-3. Copy the private key to it:
-
-   ```bash
-   sudo mkdir -p /mnt/usb
-   sudo mount /dev/sdX1 /mnt/usb
-   sudo cp snowman.key /mnt/usb/
-   sudo umount /mnt/usb
-   ```
-
-Now the USB contains:
-
-```text
-/snowman.key
-```
+1.  Format a drive with the label `SNOWMANKEY`.
+2.  Copy the **private key** `snowman.key` to the root of the drive.
 
 ### 3. Enable bootstrap for a host
 
-In `inventory.nix`, under your host:
+In your `inventory.nix`, under your host:
 
 ```nix
-hosts.vm-snowman = {
+hosts.my-laptop = {
   # ...
   bootstrap.usb = {
-    enable  = true;
-    label   = "SNOWMANKEY";
-    path    = "/mnt/snowman";
+    enable = true;
+    label = "SNOWMANKEY";
+    path = "/mnt/snowman";
     keyFile = "snowman.key";
-    fsType  = "vfat";
+    fsType = "vfat";
   };
 };
 ```
 
-This:
+The Snowman modules will automatically mount this drive and use the key to unlock your Sops secrets at boot.
 
-* defines `/mnt/snowman` in `modules/bootstrap-usb.nix`,
-* mounts `/dev/disk/by-label/SNOWMANKEY` there (with `nofail`),
-* tells `modules/sops.nix` to use:
+### 4. After first setup: move away from USB
 
-  ```nix
-  sops.age.keyFile     = "/mnt/snowman/snowman.key";
-  sops.age.generateKey = false;
-  ```
+Once the host is up:
 
-So sops-nix will **not** generate its own key; it will use the USB’s.
+1.  Get the host's new Age key: `nix run nixpkgs#ssh-to-age -- /etc/ssh/ssh_host_ed25519_key.pub`
+2.  Add that new public key to your `.sops.yaml`.
+3.  Run `sops updatekeys ...` on your secret files.
+4.  In `inventory.nix`, set `bootstrap.usb.enable = false;` for that host.
+5.  Re-deploy. The host is now self-sufficient and no longer needs the USB.
 
-### 4. Bootstrap a new machine
+-----
 
-Rough flow:
+## 🧑‍💻 For Maintainers (Developing Snowman)
 
-1. Plug in your Snowman USB (`SNOWMANKEY`) containing `snowman.key`.
-2. Boot/install your NixOS host.
-3. Ensure your Snowman flake is available on the host (clone / copy).
-4. Build + switch (from your dev machine or on-host), e.g.:
+If you are "dogfooding" (editing the Snowman framework and testing it with your personal config), your workflow is slightly different.
 
-   ```bash
-   nix run nixpkgs#nixos-rebuild -- switch \
-     --flake .#vm-snowman \
-     --target-host bas@<target-ip> \
-     --build-host bas@<target-ip> \
-     --use-remote-sudo
-   ```
+Your setup:
 
-If the USB + `.sops.yaml` setup is correct, sops-nix will decrypt:
+  * **`~/Developer/snowman/`** (This repo)
+  * **`~/Developer/snowman/flake.nix`** (The "distro" flake)
+  * **`~/Developer/snowman/template/`** (Your personal config)
 
-* user secrets from `users/secrets/...`,
-* and `modules/users/from-inventory.nix` will see `config.sops.secrets.<key>.path`.
+To test your local changes to the `modules/`:
 
-If the USB isn’t present while evaluating on your **dev** machine, that’s fine — it only matters at runtime on the target host.
+1.  **Edit `template/flake.nix`:**
+    Make sure the `snowman` input points to your local files, not GitHub.
 
-### 5. After first setup: move away from USB
+    ```nix
+    inputs.snowman = {
+      url = "path:.."; # This is the important line
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+    ```
 
-Once the host is up and stable:
+2.  **Deploy from the root:**
+    Run your deploy commands from the *root* of the `snowman` repo, but point the flake flag at the `template/` directory.
 
-1. Add the **host’s Age key** (derived from SSH host key) to `.sops.yaml`:
-
-   ```bash
-   nix run nixpkgs#ssh-to-age -- /etc/ssh/ssh_host_ed25519_key
-   ```
-
-2. Add that recipient to the relevant `creation_rules`.
-
-3. Re-encrypt your sops files (open with `sops`, save, commit).
-
-4. In `inventory.nix`, disable USB bootstrap for that host:
-
-   ```nix
-   bootstrap.usb.enable = false;
-   ```
-
-5. Rebuild; now the host can decrypt using its own keys (SSH host key and/or a local sops key).
-
----
-
-## 🧱 Quick TL;DR
-
-| Step                                            | Purpose                                        |
-| ----------------------------------------------- | ---------------------------------------------- |
-| Generate `snowman.key` (Age key)                | Dedicated bootstrap keypair                    |
-| Add its public key to `.sops.yaml`              | Let the USB decrypt your sops secrets          |
-| Put `snowman.key` on a USB labeled `SNOWMANKEY` | Portable bootstrap device                      |
-| Set `bootstrap.usb` in `inventory.nix`          | Mounts USB and points `sops.age.keyFile` there |
-| Define `users.<name>.secrets`                   | Wire per-user sops secrets into NixOS          |
-| Optionally `userPasswordHashKey` per user       | Use a sops-managed hash as login password      |
-| Bootstrap host with USB plugged in              | Secrets decrypt successfully on first setup    |
-| Add host’s Age key to `.sops.yaml`              | Let host decrypt without USB                   |
-| Disable `bootstrap.usb.enable`                  | Host becomes self-sufficient                   |
-
----
-
-## 🚀 Fresh install workflow
-
-Below is the exact sequence that works today after imaging a new box/VM with
-Snowman. The `bas` user ships with the temporary password from
-`inventory.nix`, so log in locally or via the console first.
-
-### 1. Baseline flow (no USB access)
-
-1. Clone or copy this repo to `~/snowman` (or wherever you keep your flakes).
-2. Switch the system profile:
-
-   ```bash
-   sudo nixos-rebuild switch --flake ~/snowman#vm-snowman
-   ```
-
-3. Bootstrap your Home Manager profile (this also installs the `roles.dev`
-   packages and generates `~/.ssh/id_ed25519` if one doesn’t exist):
-
-   ```bash
-   nix run nixpkgs#home-manager -- switch --flake ~/snowman#bas@vm-snowman
-   ```
-
-4. Because the dotfiles role pulls from `git@github.com:DarkBones/.dotfiles.git`,
-   copy the generated public key to another machine and paste it into GitHub →
-   **Settings → SSH keys**:
-
-   ```bash
-   cat ~/.ssh/id_ed25519.pub
-   ```
-
-   Once GitHub accepts it, verify:
-
-   ```bash
-   ssh -T git@github.com
-   ```
-
-5. Re-run the Home Manager switch so the dotfiles repo clones and the symlinks
-   (`linkMap`) are created:
-
-   ```bash
-   nix run nixpkgs#home-manager -- switch --flake ~/snowman#bas@vm-snowman
-   ```
-
-6. Confirm the dev role packages are on your PATH (the `home.sessionPath`
-   fragment in `users/env/bas.nix` now prepends the Home Manager profile):
-
-   ```bash
-   nvim --version
-   pnpm --version
-   ```
-
-### 2. Using the SNOWMANKEY USB
-
-On real hardware you normally have the USB (`SNOWMANKEY`) attached, which
-solves both secrets **and** SSH access:
-
-1. Plug in the USB before boot. `modules/bootstrap-usb.nix` automatically mounts
-   `/dev/disk/by-label/SNOWMANKEY` at `/mnt/snowman` (per
-   `inventory.nix.bootstrap.usb`). That same module feeds
-   `sops.age.keyFile = "/mnt/snowman/snowman.key"`, so secrets decrypt on the
-   first boot.
-2. Store your Git deploy/private key on the USB as well, e.g.:
-
-   ```bash
-   sudo mount /dev/disk/by-label/SNOWMANKEY /mnt/snowman
-   mkdir -p ~/.ssh
-   cp /mnt/snowman/id_ed25519 ~/.ssh/
-   chmod 600 ~/.ssh/id_ed25519
-   cp /mnt/snowman/id_ed25519.pub ~/.ssh/
-   sudo umount /mnt/snowman
-   ```
-
-3. With the key in place, the initial `home-manager switch` succeeds on the
-   first try because GitHub already trusts the SSH key. After that, continue
-   with step 5 above (re-run HM if you change anything).
-
-> ✅ The USB module code is intentionally small and still correct: it
-> declaratively mounts the label you configured and marks it `nofail`, so
-> missing hardware won’t block boot. Once you disable `bootstrap.usb.enable`,
-> the entry disappears.
-
-### 3. Current experience vs. future polish
-
-**Current reality**
-
-- Two switches are required today—`nixos-rebuild` for the host and
-  `home-manager` for per-user roles.
-- The dotfiles role runs even when Git auth fails, so you get packages but no
-  symlinks until GitHub knows your key.
-- Without the USB, copying the public key to GitHub is a manual/air-gapped
-  step (especially inside a VM that can’t see the host USB).
-
-**Ideas to improve later**
-
-1. Ship a pinned dotfiles flake input (`dotfilesSources`) so clone failures
-   become build-time issues instead of runtime warnings.
-2. Teach `roles.dotfiles` about deploy tokens or HTTPS PATs to avoid depending
-   on SSH in fresh VMs.
-3. Enhance `scripts/bootstrap.sh` to detect when SNOWMANKEY isn’t attached and
-   offer to drop the generated public key to the console automatically.
-4. Once the USB workflow is standardised, consider syncing the SSH private key
-   from `/mnt/snowman` automatically (with explicit confirmation) so the manual
-   copy/paste step disappears entirely.
-
-### Root filesystem hints
-
-Define how to find `/` in `hosts.<name>.hardware.fs`.  The storage module
-prefers identifiers in this order, so pick the most stable one for your setup:
-
-1. `device` – absolute block path (`/dev/disk/by-path/...` or `/dev/vda1`).
-2. `partition` / `partitionNumber` – numeric partition on
-   `hardware.bootDevice` (adds `p` for NVMe/mmc names automatically).
-3. `rootLabel` – mounts via `/dev/disk/by-label/<label>`.
-4. `rootUuid` – legacy fallback.
-
-Example:
-
-```nix
-hosts.vm-snowman.hardware = {
-  bootDevice = "/dev/vda";   # for GRUB installation
-  fs = {
-    type = "ext4";
-    partition = 1;           # results in /dev/vda1
-  };
-};
-```
-
-This keeps rebuilds stable even if the filesystem UUID changes during a fresh
-install—just keep the disk layout consistent.
-
----
-
-## 🔍 For maintainers – where things live
-
-* **Host inventory**: `inventory.nix`
-
-  * hardware, filesystem, users, roles, bootstrap USB.
-* **Core modules**: `modules/`
-
-  * `hardware/from-inventory.nix` – hostname, bootloader, disko, etc.
-  * `users/from-inventory.nix` – user accounts, passwords, assertions.
-  * `home/from-inventory.nix` – home-manager per user.
-  * `bootstrap-usb.nix` – mounts the USB by label.
-  * `sops.nix` – all sops-nix wiring & per-user secret registration.
-  * `ssh.nix` – SSH hardening & allowed users.
-  * `nix.nix`, `security.nix`, etc. – miscellaneous system config.
-* **Home-manager roles**: `modules/home/roles/*.nix`
-
-  * `dev.nix`, `ssh.nix`, `dotfiles.nix`, `secrets.nix` (installs `sops` CLI).
-* **Secrets**:
-
-  * `.sops.yaml` – which Age keys protect which files.
-  * `users/secrets/*.yml` – actual encrypted secret payloads.
-
-If you keep these pieces in sync, Snowman gives you a **one-command, inventory-driven** NixOS setup with sane secret management, per-user roles, and a clear path for per-host secrets later.
+    ```bash
+    # This builds the 'vm-snowman' host defined in 'template/inventory.nix'
+    # using the 'snowman' modules from the parent directory.
+    nix run nixpkgs#nixos-rebuild -- switch \
+      --flake ./template#vm-snowman \
+      --target-host bas@192.168.122.241 \
+      --use-remote-sudo
+    ```
