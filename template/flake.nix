@@ -59,6 +59,8 @@
         pkgsUnstable = makePkgsUnstable attrs.system;
         modulesPath = "${nixpkgs}/nixos/modules";
         currentHost = name;
+
+        extraHomeImports = [ ./home/roles ];
       };
 
       mkHost = name: attrs:
