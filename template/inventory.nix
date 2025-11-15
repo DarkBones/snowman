@@ -93,38 +93,38 @@
       #   "qemu-guest" # ONLY for VMs. On normal machines, omit this.
       # ];
 
-      ############################################################
-      ## Hardware description
-      ##
-      ## Snowman uses this to:
-      ##   - define the root filesystem
-      ##   - configure the bootloader
-      ##
-      ## Minimal working example: a single ext4 root partition.
-      ############################################################
-      hardware = {
-        # The disk that holds your NixOS installation.
-        # For example: "/dev/sda", "/dev/nvme0n1", "/dev/vda", ...
-        bootDevice = "/dev/vda";
-
-        fs = {
-          # Filesystem type for "/"
-          type = "ext4";
-
-          # Example 1: root is /dev/vda1
-          partition = 1;
-
-          # Alternative examples:
-          # device = "/dev/disk/by-label/ROOT";
-          # rootLabel = "ROOT";
-          # rootUuid = "11111111-2222-3333-4444-555555555555";
-
-          # Optional swap size in GiB (only used if you later enable
-          # disko-based provisioning)
-          # swapGiB = 0;
-        };
-      };
-
+      # ############################################################
+      # ## Hardware description (Advanced)
+      # ##
+      # ## Snowman uses this to:
+      # ##   - define the root filesystem
+      # ##   - configure the bootloader
+      # ##
+      # ## Minimal working example: a single ext4 root partition.
+      # ############################################################
+      # hardware = {
+      #   # The disk that holds your NixOS installation.
+      #   # For example: "/dev/sda", "/dev/nvme0n1", "/dev/vda", ...
+      #   bootDevice = "/dev/vda";
+      #
+      #   fs = {
+      #     # Filesystem type for "/"
+      #     type = "ext4";
+      #
+      #     # Example 1: root is /dev/vda1
+      #     partition = 1;
+      #
+      #     # Alternative examples:
+      #     # device = "/dev/disk/by-label/ROOT";
+      #     # rootLabel = "ROOT";
+      #     # rootUuid = "11111111-2222-3333-4444-555555555555";
+      #
+      #     # Optional swap size in GiB (only used if you later enable
+      #     # disko-based provisioning)
+      #     # swapGiB = 0;
+      #   };
+      # };
+      #
       ############################################################
       ## Users enabled on this host
       ##
