@@ -31,7 +31,9 @@
         };
       };
 
-      profiles = [ "qemu-guest" ]; # ONLY for VMs. On normal machines, simply omit this key
+      profiles = [
+        "qemu-guest"
+      ]; # ONLY for VMs. On normal machines, simply omit this key
 
       hardware = {
         bootDevice = "/dev/vda";
@@ -61,6 +63,7 @@
       groups = [ "wheel" ];
       shell = "zsh";
       sshPubKeys = [ (builtins.readFile ./users/keys/bas-arch.pub) ];
+      # sshPubKeyFiles = [ ./users/keys/bas-arch.pub ];
 
       secrets = {
         sopsFile = ./users/secrets/bas_secrets.yml;

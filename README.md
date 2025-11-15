@@ -206,6 +206,80 @@ hosts.my-laptop.secrets = {
 };
 ```
 
+## 🔑 SSH Login Keys (`users/keys/`)
+
+Snowman separates *user login keys* from *secrets* to make your configuration easier to understand.
+
+### What goes in `users/keys/`?
+
+This directory holds **SSH public keys** that allow users to log into your Snowman-managed machines.
+
+Examples:
+
+* Your laptop’s SSH public key
+* Your work machine’s SSH public key
+* A YubiKey-backed public key
+* Any other key you want to authorize
+
+These are **not secrets** — public keys are safe to store in Git.
+
+```
+users/
+  keys/
+    alice.pub
+    work-laptop.pub
+    yubikey.pub
+```
+
+### How to use these keys
+
+Inside `inventory.nix`, you reference them using `sshPubKeyFile`:
+
+```nix
+users.alice = {
+  uid = 1000;
+  groups = [ "wheel" ];
+  shell = "zsh";
+  sshPubKeyFile = ./users/keys/alice.pub;
+};
+```
+
+Or, if you prefer inline keys, you can use:
+
+```nix
+sshPubKeys = [ "ssh-ed25519 AAAA... alice@laptop" ];
+```
+
+Both forms populate:
+
+```
+~/.ssh/authorized_keys
+```
+
+for that user.
+
+### Relationship to sops/Age
+
+`users/keys/` is **not** related to `.sops.yaml`. That file controls:
+
+* Age recipient keys
+* Which keys can decrypt your **encrypted secret files**
+
+SSH keys for login **must remain unencrypted**, because they live in the public, world-readable `authorized_keys`.
+
+Use:
+
+* `users/keys/*` → **public SSH keys for login**
+* `users/secrets/*.yml` → **sops-encrypted files for secrets**, like password hashes or tokens
+
+### Summary
+
+* `users/keys/` contains **public keys** for login
+* Refer to them via `sshPubKeyFile` in `inventory.nix`
+* These keys end up in the user’s `authorized_keys`
+* They are not encrypted and not part of sops
+* They work seamlessly with the Snowman engine
+
 ---
 
 # 💾 Optional: USB Bootstrap Age Key (“Snowman Key”)

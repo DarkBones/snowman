@@ -6,7 +6,7 @@ let
   users = lib.filterAttrs (k: v: lib.elem k hostUsers) inv.users;
   declaredUserNames = builtins.attrNames inv.users;
 
-  # Yes, This is the correct order. The doccumentation is wrong. This is not a bug!
+  # Yes, This is the correct order. The documentation is wrong. This is not a bug!
   unknownUsers = lib.subtractLists declaredUserNames hostUsers;
 
   shellStrs =
@@ -33,12 +33,32 @@ let
         toString v
       }'. Use a nixpkgs attribute name (e.g. 'fish', 'zsh', 'nushell') or an absolute path.";
 
+  # Collect all SSH keys for a user:
+  #   - inline keys: sshPubKeys = [ "ssh-ed25519 AAAA..." ... ]
+  #   - single file (legacy): sshPubKeyFile = ./users/keys/user.pub
+  #   - multiple files: sshPubKeyFiles = [ ./users/keys/a.pub ./users/keys/b.pub ]
   keysFor = u:
-    (u.sshPubKeys or [ ])
-    ++ (if (u ? sshPubKeyFile) && builtins.pathExists u.sshPubKeyFile then
-      [ (builtins.readFile u.sshPubKeyFile) ]
-    else
-      [ ]);
+    let
+      inlineKeys = u.sshPubKeys or [ ];
+
+      filePaths = (lib.optional (u ? sshPubKeyFile) u.sshPubKeyFile)
+        ++ (u.sshPubKeyFiles or [ ]);
+
+      fileKeys = map builtins.readFile filePaths;
+    in inlineKeys ++ fileKeys;
+
+  # Assertion: all referenced key files must exist
+  sshKeyFileAssertions = lib.mapAttrsToList (name: u:
+    let
+      filePaths = (lib.optional (u ? sshPubKeyFile) u.sshPubKeyFile)
+        ++ (u.sshPubKeyFiles or [ ]);
+    in {
+      assertion = lib.all builtins.pathExists filePaths;
+      message =
+        "Inventory: user ${name} references non-existent sshPubKeyFile(s): "
+        + (toString (lib.filter (p: !builtins.pathExists p) filePaths));
+    }) users;
+
 in {
   config = lib.mkMerge ([{
     users.groups = lib.genAttrs (builtins.attrNames users) (_: { });
@@ -101,7 +121,7 @@ in {
         }
       ]) users))
     {
-      assertions = [
+      assertions = sshKeyFileAssertions ++ [
         {
           assertion = hasHost;
           message = "Inventory: host ${currentHost} not found in inv.hosts";
@@ -120,7 +140,8 @@ in {
         {
           assertion = lib.all (n: (lib.length (keysFor users.${n})) > 0)
             (builtins.attrNames users);
-          message = "Inventory: each user must provide at least one SSH key";
+          message =
+            "Inventory: each user must provide at least one SSH key (sshPubKeys, sshPubKeyFile or sshPubKeyFiles).";
         }
       ];
     }
