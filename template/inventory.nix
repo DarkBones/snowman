@@ -34,8 +34,6 @@
       profiles = [ "qemu-guest" ]; # ONLY for VMs. On normal machines, simply omit this key
 
       hardware = {
-        boot = { firmware = "bios"; }; # "bios" | "efi"
-        # disk = { device = "/dev/vda"; }; # VM disk
         bootDevice = "/dev/vda";
         fs = {
           type = "ext4";
@@ -60,7 +58,6 @@
   users = {
     bas = {
       uid = 1000;
-      homeManaged = true;
       groups = [ "wheel" ];
       shell = "zsh";
       sshPubKeys = [ (builtins.readFile ./users/keys/bas-arch.pub) ];
