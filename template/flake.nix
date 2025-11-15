@@ -73,6 +73,8 @@
 
             home-manager.nixosModules.home-manager
 
+            ./hardware-configuration.nix
+
             # (Optional) A place for your host-specific .nix files
             # ./hosts/${name}.nix
           ];

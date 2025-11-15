@@ -17,7 +17,6 @@ in {
   imports = [
     ./hardware/from-inventory.nix
     ./home/from-inventory.nix
-    ./storage/rootfs-from-inventory.nix
     ./users/from-inventory.nix
   ] ++ moduleFiles ++ lib.optional diskoOn disko.nixosModules.disko;
 
