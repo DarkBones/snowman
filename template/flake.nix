@@ -65,9 +65,14 @@
           system = attrs.system;
           specialArgs = mkNixosSpecialArgs name attrs;
           modules = [
+            # Snowman "engine"
             snowman.nixosModules.default
+
+            # Home Manager integration
             home-manager.nixosModules.home-manager
-            ./hardware-configuration.nix
+
+            # Per-host NixOS config (including hardware config import)
+            ./hosts/${name}.nix
           ];
         };
     in { nixosConfigurations = lib.mapAttrs mkHost inv.hosts; };
