@@ -10,7 +10,7 @@
     disko.url = "github:nix-community/disko";
   };
 
-  outputs = { self, nixpkgs, home-manager, sops-nix, disko }: {
+  outputs = inputs@{ self, nixpkgs, ... }: {
 
     nixosModules.default = ./modules;
     homeModules.default = ./modules/home;
