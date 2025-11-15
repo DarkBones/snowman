@@ -28,7 +28,7 @@
   ##   - system       : NixOS system (e.g. "x86_64-linux")
   ##   - users        : list of user names for this host
   ##
-  ## Optional (but recommended):
+  ## Optional:
   ##   - mutableUsers : whether you can change users via `passwd` etc.
   ##   - hostname     : overrides the key name as the system hostname
   ##   - hardware.*   : describes how to mount root and install bootloader
@@ -80,18 +80,6 @@
       #     # };
       #   };
       # };
-
-      ############################################################
-      ## Profiles
-      ##
-      ## Profiles are NixOS modules from nixpkgs, imported by name.
-      ## Examples include "qemu-guest", "lenovo-thinkpad", etc.
-      ##
-      ## For bare metal, you can usually omit this.
-      ############################################################
-      # profiles = [
-      #   "qemu-guest" # ONLY for VMs. On normal machines, omit this.
-      # ];
 
       # ############################################################
       # ## Hardware description (Advanced)
