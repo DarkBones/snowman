@@ -8,11 +8,32 @@
       mutableUsers = false;
       hostname = "vm-snowman";
 
-      # Reserved for future disko integration
+      ############################################################
+      ## Minimal hardware description used by Snowman
+      ##
+      ## Adjust these values to match your VM/disk layout.
+      ############################################################
+      hardware = {
+        # Is this machine booting in "bios" or "efi" mode?
+        boot = { firmware = "bios"; }; # or "efi"
+
+        # The *disk* that contains your root partition (no partition number)
+        bootDevice = "/dev/vda"; # e.g. /dev/sda, /dev/vda, /dev/nvme0n1
+
+        # Filesystem info for the root partition
+        fs = {
+          type = "ext4"; # e.g. "ext4", "btrfs"
+          partition = 1; # e.g. /dev/vda1 → 1
+          # swapGiB = 0;                # optional: swap size in GiB if you let Snowman/disko create it
+        };
+      };
+
+      # Reserved for future disko integration (uses `hardware.*` above)
       provision.disk.enable = false;
 
-      # networking.useDHCP defaults to true when omitted.
-      # networking.useDHCP = true;
+      # Networking: Snowman maps this to `networking.useDHCP` internally.
+      # If omitted, DHCP defaults to true.
+      # useDHCP = true;
 
       # Optional per-host secrets (via sops-nix)
       # secrets = {
@@ -35,6 +56,18 @@
     # my-laptop = {
     #   system = "x86_64-linux";
     #   users  = [ "alice" ];
+    #
+    #   hardware = {
+    #     boot = { firmware = "efi"; };   # "bios" or "efi"
+    #     bootDevice = "/dev/nvme0n1";    # disk, no partition suffix
+    #     fs = {
+    #       type = "ext4";                # e.g. "ext4", "btrfs"
+    #       partition = 1;                # /dev/nvme0n1p1 → 1
+    #       # swapGiB = 8;                # optional swap on same disk
+    #     };
+    #   };
+    #
+    #   # provision.disk.enable = true;   # when you want Snowman+disko to own the disk
     # };
   };
 

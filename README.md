@@ -4,10 +4,10 @@ Snowman is an **inventory-driven NixOS framework** designed to be a reusable “
 
 It is built on a **distro + template** model:
 
-* **The Snowman Repo (this one):**
+* **The Snowman Repo (this one):**  
   The *engine*. It provides all core modules for users, hardware, secrets, and roles.
 
-* **Your Config Repo (created from the template):**
+* **Your Config Repo (created from the template):**  
   The *car*. This contains your personal `inventory.nix`, secrets, user definitions, host definitions, dotfiles settings, etc.
 
 You own your config repo forever. Snowman stays the clean, reusable engine underneath.
@@ -16,7 +16,7 @@ You own your config repo forever. Snowman stays the clean, reusable engine under
 
 # 🚀 Step 1 — Create Your Personal Config Repo
 
-**Do not clone this repo directly for personal use.**
+**Do not clone this repo directly for personal use.**  
 Instead, generate your *own* repo from Snowman's template.
 
 ### Option A: GitHub UI
@@ -28,13 +28,13 @@ Click the green **“Use this template”** button on this repo’s GitHub page.
 ```bash
 nix flake new -t github:DarkBones/snowman#default my-personal-config
 cd my-personal-config
-```
+````
 
 This creates your own fresh Snowman-powered configuration directory.
 
 ---
 
-# 🧭 Step 2 — Configure Your System
+# 🧭 Step 2 — Configure Your System (Inventory First)
 
 Everything you edit happens *inside your personal config repo*.
 Your new `my-personal-config/` directory is now your “forever config.”
@@ -167,75 +167,214 @@ git commit -m "Initial Snowman setup"
 git push
 ```
 
-Your config repo is now ready for installation.
+Your config repo is now ready to be used on a real machine.
 
 ---
 
-# 🖥️ Step 3 — Install a New Machine
+# 🖥️ Step 3 — Install NixOS Normally, Then Hand Control to Snowman
 
-1. Boot the target machine using the **official NixOS minimal ISO**.
+Snowman assumes the following workflow:
 
-2. Connect to the internet.
+> **Install NixOS with the normal installer, reboot, log in as your user, then switch the machine over to your Snowman config.**
 
-3. Partition and format your disks normally.
+You do **not** run Snowman from the live ISO after installation.
 
-4. Mount your root filesystem at `/mnt`, e.g.:
+## 1. Install NixOS with the graphical (or standard) installer
 
-   ```bash
-   mount /dev/sda1 /mnt
-   ```
+On the target machine:
 
-5. Generate a hardware configuration for this machine:
+1. Boot the official NixOS ISO (graphical installer is fine).
+2. Use the installer normally:
 
-   ```bash
-   nixos-generate-config --root /mnt
-   ```
+   * partition and format disks,
+   * pick a filesystem (ext4, btrfs, …),
+   * choose a bootloader (GRUB / systemd-boot),
+   * create an initial user account (e.g. `bas`),
+   * finish the installation.
 
-   This writes `/mnt/etc/nixos/hardware-configuration.nix` with all the disk,
-   filesystem and basic hardware settings for this host.
+The installer will write its own `/etc/nixos/configuration.nix` and
+`/etc/nixos/hardware-configuration.nix`. Think of these as **temporary**:
+Snowman will replace them.
 
-6. Copy that file into your config repo as a host-specific hardware file,
-   for example:
+3. Reboot into the freshly installed system.
+4. Log in as the user you created during installation.
 
-   ```text
-   hosts/my-laptop-hardware-configuration.nix
-   ```
+## 2. Clone your Snowman config repo on the installed system
 
-   and import it from your host module:
+On the newly installed system:
+
+```bash
+# Example location; choose whatever you like
+mkdir -p ~/Developer
+cd ~/Developer
+
+git clone git@github.com:YourName/my-personal-config.git
+cd my-personal-config
+```
+
+From now on, **all commands are run inside this repo**, as that user.
+
+## 3. Import the installer’s hardware configuration
+
+The installer already generated `/etc/nixos/hardware-configuration.nix`
+for this machine. Snowman wants that file **inside your config repo**, under
+a host-specific name, and it will assert that it exists.
+
+Use the helper script from the template:
+
+```bash
+./bin/snowman-import-hardware <host-name>
+```
+
+Example:
+
+```bash
+./bin/snowman-import-hardware my-laptop
+```
+
+This will:
+
+* read `/etc/nixos/hardware-configuration.nix` from the installed system, and
+* copy it to:
+
+  ```text
+  hosts/my-laptop-hardware-configuration.nix
+  ```
+
+If the file already exists, the script refuses to overwrite it, so you won’t
+accidentally lose edits.
+
+Snowman’s flake wiring will automatically import this file for the host and
+fail with a clear error if it’s missing.
+
+## 4. Fill in the `hardware` block in `inventory.nix`
+
+Each host entry in your `inventory.nix` should have a `hardware` block:
+
+```nix
+hosts.my-laptop = {
+  system = "x86_64-linux";
+  users  = [ "alice" ];
+
+  hardware = {
+    boot = { firmware = "efi"; }; # "efi" or "bios"
+    bootDevice = "/dev/sda";      # whole disk, not a partition
+    fs = {
+      type = "ext4";              # or "btrfs", "xfs", ...
+      partition = 1;              # /dev/sda1 → 1
+      # swapGiB = 0;              # optional, for future disko integration
+    };
+  };
+
+  # ... other host settings (secrets, bootstrap.usb, profiles, ...)
+};
+```
+
+This `hardware` information is used by Snowman for things like future disk
+provisioning (via disko). It doesn’t replace `hardware-configuration.nix` —
+you need **both**:
+
+* `hosts/<host>-hardware-configuration.nix` → full machine-specific module
+* `hosts.<host>.hardware` → structured “inventory view” Snowman can reason about
+
+### How to find the values Snowman expects
+
+All the information you need already exists on the installed system.
+
+#### `fs.type` and partition number
+
+1. Open `/etc/nixos/hardware-configuration.nix` and find the root filesystem:
 
    ```nix
-   # hosts/my-laptop.nix
-   { ... }: {
-     imports = [
-       ./my-laptop-hardware-configuration.nix
-     ];
-   }
+   fileSystems."/" = {
+     device = "/dev/disk/by-uuid/6a99d998-...";
+     fsType = "ext4";
+   };
    ```
 
-   You only need to do this **once per new host** (unless you later change the
-   disk layout or major hardware).
-
-7. Install NixOS using your config repo:
+2. Use `lsblk` or `findmnt` to map that UUID back to a device:
 
    ```bash
-   nix-shell -p git
-   nixos-install --flake git@github.com:YourName/my-personal-config#my-laptop
+   lsblk -f
+   # or:
+   findmnt /
    ```
 
-   (You can also use an HTTPS URL if you prefer. Just make sure you’ve
-   committed and pushed the new `hosts/*-hardware-configuration.nix` file
-   before running this.)
+   You’ll typically see something like `/dev/sda1` or `/dev/vda1` as the
+   backing device for `/`.
 
-8. If you enabled the optional USB bootstrap (see below),
-   plug in the `SNOWMANKEY` when prompted by sops-nix.
+3. From that:
 
-9. Reboot.
+   * `fs.type` → the `fsType` value (`"ext4"`, `"btrfs"`, …)
+   * `fs.partition` → the partition number (`/dev/sda1` → `1`, `/dev/nvme0n1p2` → `2`)
 
-Your new Snowman-powered machine will be configured exactly as defined.
+#### `bootDevice`
+
+Look in `/etc/nixos/configuration.nix`:
+
+* For GRUB:
+
+  ```nix
+  boot.loader.grub.devices = [ "/dev/sda" ];
+  ```
+
+  → use `/dev/sda` as `bootDevice`.
+
+* For systemd-boot / EFI, your disk is often something like `/dev/nvme0n1` or `/dev/sda`:
+  again, `lsblk` will show you which disk contains the EFI system partition
+  (usually mounted at `/boot/efi`). Use that whole-disk path as `bootDevice`.
+
+In tricky cases you can always fall back to:
+
+```bash
+lsblk
+lsblk -f
+```
+
+and reason from there.
+
+#### `boot.firmware`
+
+Rough rule of thumb:
+
+* If you have `boot.loader.systemd-boot.enable = true;` or an EFI system
+  partition mounted at `/boot/efi`, set:
+
+  ```nix
+  hardware.boot.firmware = "efi";
+  ```
+
+* If you’re using BIOS GRUB only (no EFI system partition), set:
+
+  ```nix
+  hardware.boot.firmware = "bios";
+  ```
+
+You don’t have to be perfect for Snowman to work; this setting is mainly for
+disko / re-provisioning workflows.
+
+## 5. Switch the machine to your Snowman config
+
+Once:
+
+* your host exists in `inventory.nix` (with `hardware` filled in),
+* the matching `hosts/<host>-hardware-configuration.nix` file exists
+  (created via `snowman-import-hardware`), and
+* your users are wired up,
+
+run from inside your config repo on the installed system:
+
+```bash
+sudo nixos-rebuild switch --flake .#my-laptop
+```
+
+This **replaces** the installer’s “throwaway” configuration with your
+Snowman-driven one. From now on you manage the machine purely by editing your
+config repo and running `nixos-rebuild` with the flake.
 
 ---
 
-# 🔄 Step 4 — Deploy Updates
+# 🔄 Step 4 — Deploy Updates (From Any Machine)
 
 From your development machine (macOS, Linux, etc.), run:
 
@@ -342,6 +481,15 @@ hosts = {
   my-laptop = {
     system = "x86_64-linux";
     users  = [ "alice" ];
+
+    hardware = {
+      boot = { firmware = "efi"; };
+      bootDevice = "/dev/sda";
+      fs = {
+        type = "ext4";
+        partition = 1;
+      };
+    };
   };
 };
 ```
@@ -350,6 +498,10 @@ Required per host:
 
 * `system` – NixOS system type (e.g. `"x86_64-linux"`)
 * `users` – list of user names that should exist on this host
+
+Strongly recommended:
+
+* `hardware` – the block above (used for disk/provisioning logic)
 
 Optional, but useful:
 
@@ -379,35 +531,23 @@ Snowman converts `items` into `sops.secrets` entries and writes them as files wi
 
 #### Hardware configuration files (per host)
 
-Snowman does **not** generate hardware configs for you; it expects you to keep
-each host’s `hardware-configuration.nix` **inside your config repo** and
-import it from the host module.
-
-Typical pattern:
-
-```bash
-# On the live ISO, after mounting root at /mnt:
-nixos-generate-config --root /mnt
-```
-
-Then copy:
+As described above, Snowman expects a per-host hardware file:
 
 ```text
-/mnt/etc/nixos/hardware-configuration.nix
-    → hosts/my-laptop-hardware-configuration.nix
+hosts/<host>-hardware-configuration.nix
 ```
 
-and in `hosts/my-laptop.nix`:
+You normally create this once per host by running, **on the installed system**:
 
-```nix
-{ ... }: {
-  imports = [
-    ./my-laptop-hardware-configuration.nix
-  ];
-}
+```bash
+cd /path/to/my-personal-config
+./bin/snowman-import-hardware <host-name>
 ```
 
-You only need to do this once when bringing a new host under Snowman.
+This copies `/etc/nixos/hardware-configuration.nix` into the correct location.
+Snowman’s flake wiring automatically imports it and refuses to build if it’s
+missing, with an explicit error telling you which command to run.
+
 From then on, hardware for that host is fully managed via Git like everything
 else.
 
