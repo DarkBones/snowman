@@ -16,19 +16,19 @@
     };
 
     snowman = {
-      # url = "github:DarkBones/snowman";
-      url = "path:..";
+      url = "github:DarkBones/snowman";
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
     # Add your pinned dotfiles here, e.g.:
     # bas-dotfiles = {
-    #   url = "github:DarkBones/dotfiles";
+    #   url = "github:YourUserName/dotfiles";
     #   flake = false;
     # };
   };
 
-  outputs = { self, nixpkgs, home-manager, sops-nix, snowman, ... }@inputs:
+  outputs =
+    { self, nixpkgs, home-manager, sops-nix, snowman, disko, ... }@inputs:
     let
       lib = nixpkgs.lib;
 
@@ -36,9 +36,8 @@
       inv = import ./inventory.nix;
 
       # This is you map your dotfile inputs
-      dotfilesSources = {
-        # bas = inputs.bas-dotfiles;
-      };
+      # TODO: Deprecate and put in inventory (per-user)
+      dotfilesSources = { bas = inputs.bas-dotfiles; };
 
       makePkgs = system:
         import nixpkgs {
@@ -52,7 +51,7 @@
         };
 
       mkNixosSpecialArgs = name: attrs: {
-        inherit home-manager inv sops-nix dotfilesSources;
+        inherit home-manager inv sops-nix dotfilesSources disko;
         pkgsUnstable = makePkgsUnstable attrs.system;
         modulesPath = "${nixpkgs}/nixos/modules";
         currentHost = name;
@@ -61,21 +60,47 @@
       };
 
       mkHost = name: attrs:
-        lib.nixosSystem {
+        let hwFile = ./hosts/${name}-hardware-configuration.nix;
+        in lib.nixosSystem {
           system = attrs.system;
           specialArgs = mkNixosSpecialArgs name attrs;
           modules = [
-            # Snowman "engine"
+            # Snowman engine
             snowman.nixosModules.default
 
             # Home Manager integration
             home-manager.nixosModules.home-manager
 
-            # Generic per-host wrapper that imports the hardware config
-            ({ ... }: {
-              imports = [ ./hosts/${name}-hardware-configuration.nix ];
+            # Per-host wrapper that:
+            #  - imports the hardware config
+            #  - asserts that it exists
+            ({ lib, ... }: {
+              imports = lib.optional (builtins.pathExists hwFile) hwFile;
+
+              assertions = [{
+                assertion = builtins.pathExists hwFile;
+                message = ''
+                  ❌ Snowman: Hardware configuration missing for host "${name}".
+
+                  Expected file:
+                    hosts/${name}-hardware-configuration.nix
+
+                  Fix:
+                    On the machine this NixOS install is running on, execute:
+
+                      ./bin/snowman-import-hardware ${name}
+
+                    This will copy /etc/nixos/hardware-configuration.nix
+                    into the correct location in your Snowman config repo.
+
+                    Then re-run:
+
+                      sudo nixos-rebuild switch --flake .#${name}
+                '';
+              }];
             })
-          ] ++ (attrs.extraModules or [ ]); # optional per-host extra modules
+
+          ] ++ (attrs.extraModules or [ ]);
         };
     in { nixosConfigurations = lib.mapAttrs mkHost inv.hosts; };
 }
