@@ -71,9 +71,11 @@
             # Home Manager integration
             home-manager.nixosModules.home-manager
 
-            # Per-host NixOS config (including hardware config import)
-            ./hosts/${name}.nix
-          ];
+            # Generic per-host wrapper that imports the hardware config
+            ({ ... }: {
+              imports = [ ./hosts/${name}-hardware-configuration.nix ];
+            })
+          ] ++ (attrs.extraModules or [ ]); # optional per-host extra modules
         };
     in { nixosConfigurations = lib.mapAttrs mkHost inv.hosts; };
 }
