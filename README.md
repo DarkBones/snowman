@@ -4,10 +4,10 @@ Snowman is an **inventory-driven NixOS framework** designed to be a reusable “
 
 It is built on a **distro + template** model:
 
-* **The Snowman Repo (this one):**  
+* **The Snowman Repo (this one):**
   The *engine*. It provides all core modules for users, hardware, secrets, and roles.
 
-* **Your Config Repo (created from the template):**  
+* **Your Config Repo (created from the template):**
   The *car*. This contains your personal `inventory.nix`, secrets, user definitions, host definitions, dotfiles settings, etc.
 
 You own your config repo forever. Snowman stays the clean, reusable engine underneath.
@@ -16,7 +16,7 @@ You own your config repo forever. Snowman stays the clean, reusable engine under
 
 # 🚀 Step 1 — Create Your Personal Config Repo
 
-**Do not clone this repo directly for personal use.**  
+**Do not clone this repo directly for personal use.**
 Instead, generate your *own* repo from Snowman's template.
 
 ### Option A: GitHub UI
@@ -185,19 +185,51 @@ Your config repo is now ready for installation.
    mount /dev/sda1 /mnt
    ```
 
-5. Install NixOS using your new config repo:
+5. Generate a hardware configuration for this machine:
+
+   ```bash
+   nixos-generate-config --root /mnt
+   ```
+
+   This writes `/mnt/etc/nixos/hardware-configuration.nix` with all the disk,
+   filesystem and basic hardware settings for this host.
+
+6. Copy that file into your config repo as a host-specific hardware file,
+   for example:
+
+   ```text
+   hosts/my-laptop-hardware-configuration.nix
+   ```
+
+   and import it from your host module:
+
+   ```nix
+   # hosts/my-laptop.nix
+   { ... }: {
+     imports = [
+       ./my-laptop-hardware-configuration.nix
+     ];
+   }
+   ```
+
+   You only need to do this **once per new host** (unless you later change the
+   disk layout or major hardware).
+
+7. Install NixOS using your config repo:
 
    ```bash
    nix-shell -p git
    nixos-install --flake git@github.com:YourName/my-personal-config#my-laptop
    ```
 
-   (You can also use an HTTPS URL if you prefer.)
+   (You can also use an HTTPS URL if you prefer. Just make sure you’ve
+   committed and pushed the new `hosts/*-hardware-configuration.nix` file
+   before running this.)
 
-6. If you enabled the optional USB bootstrap (see below),
+8. If you enabled the optional USB bootstrap (see below),
    plug in the `SNOWMANKEY` when prompted by sops-nix.
 
-7. Reboot.
+9. Reboot.
 
 Your new Snowman-powered machine will be configured exactly as defined.
 
@@ -298,8 +330,8 @@ Snowman maps these to `sops.secrets` entries and writes them as files with the g
 
 Your `inventory.nix` is the heart of Snowman. It does two things:
 
-- Defines **which hosts** you manage (`hosts = { ... };`)
-- Defines **which users** exist and which hosts they appear on (`users = { ... };`)
+* Defines **which hosts** you manage (`hosts = { ... };`)
+* Defines **which users** exist and which hosts they appear on (`users = { ... };`)
 
 ### Hosts
 
@@ -344,6 +376,40 @@ hosts.my-laptop.secrets = {
 ```
 
 Snowman converts `items` into `sops.secrets` entries and writes them as files with the given owner/group/mode.
+
+#### Hardware configuration files (per host)
+
+Snowman does **not** generate hardware configs for you; it expects you to keep
+each host’s `hardware-configuration.nix` **inside your config repo** and
+import it from the host module.
+
+Typical pattern:
+
+```bash
+# On the live ISO, after mounting root at /mnt:
+nixos-generate-config --root /mnt
+```
+
+Then copy:
+
+```text
+/mnt/etc/nixos/hardware-configuration.nix
+    → hosts/my-laptop-hardware-configuration.nix
+```
+
+and in `hosts/my-laptop.nix`:
+
+```nix
+{ ... }: {
+  imports = [
+    ./my-laptop-hardware-configuration.nix
+  ];
+}
+```
+
+You only need to do this once when bringing a new host under Snowman.
+From then on, hardware for that host is fully managed via Git like everything
+else.
 
 ### Users
 
@@ -608,7 +674,8 @@ If you intentionally want SSH password logins, you must:
 
    ```nix
    services.openssh.settings.PasswordAuthentication = true;
-   services.openssh.settings.AuthenticationMethods = "publickey,password publickey,keyboard-interactive";
+   services.openssh.settings.AuthenticationMethods =
+     "publickey,password publickey,keyboard-interactive";
    ```
 
 2. Ensure your users have passwords (`initialPassword` or sops-managed hash).
