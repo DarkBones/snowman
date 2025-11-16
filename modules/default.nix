@@ -13,7 +13,7 @@ let
   moduleFiles = map (name: here + "/${name}") nixFiles;
 
 in {
-  imports = [ ./hardware ./home ./users ] ++ moduleFiles;
+  imports = [ ./hardware ./home/from-inventory.nix ./users ] ++ moduleFiles;
 
   config = {
     home-manager.extraSpecialArgs = { inherit pkgsUnstable dotfilesSources; };
