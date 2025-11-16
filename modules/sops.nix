@@ -6,6 +6,7 @@ let
 
   usbCfg = host.bootstrap.usb or { enable = false; };
 
+  # Users that actually have a `secrets.sopsFile` configured
   usersWithSecrets =
     lib.filterAttrs (name: u: lib.elem name hostUsers && (u ? secrets.sopsFile))
     inv.users;
@@ -15,16 +16,25 @@ let
       u = inv.users.${userName};
       sopsFile = u.secrets.sopsFile;
       secretKeys = u.secrets.keys or [ ];
+      passwordKey = u.secrets.userPasswordHashKey or null;
+
+      mkValue = key:
+        ({
+          inherit sopsFile;
+          format = "yaml";
+          key = key;
+          owner = userName;
+          group = userName;
+          mode = "0400";
+        }
+        # If this key is used as `userPasswordHashKey`, we need it
+        # in /run/secrets-for-users so the users module can read it.
+          // lib.optionalAttrs (passwordKey != null && key == passwordKey) {
+            neededForUsers = true;
+          });
     in builtins.listToAttrs (map (key: {
       name = key;
-      value = {
-        inherit sopsFile;
-        format = "yaml";
-        key = key;
-        owner = userName;
-        group = userName;
-        mode = "0400";
-      };
+      value = mkValue key;
     }) secretKeys);
 
   perUserSecrets = lib.foldl' (acc: name: acc // mkSecretsForUser name) { }
@@ -45,23 +55,70 @@ in {
   imports = [ sops-nix.nixosModules.sops ];
 
   config = lib.mkIf (allSecrets != { }) {
+
+    # Always use a local key file; for USB mode we copy into here.
     sops = {
       validateSopsFiles = false;
 
-      age = lib.mkMerge [
-        (lib.mkIf (!usbCfg.enable) {
-          generateKey = true;
-          # optional: no sshKeyPaths here, or keep both if you want
-        })
-        (lib.mkIf usbCfg.enable {
-          sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
-          generateKey = false;
-          keyFile = "${usbCfg.path}/${usbCfg.keyFile}";
-        })
-      ];
+      age = {
+        keyFile = "/var/lib/sops-nix/age.key";
+        # If we're NOT in bootstrap.usb mode, let sops-nix generate a key.
+        # If we ARE in bootstrap.usb mode, we provide the key ourselves below.
+        generateKey = !usbCfg.enable;
+      };
 
       secrets = allSecrets;
     };
+
+    # Bootstrap: copy age key from USB -> /var/lib/sops-nix/age.key (once)
+    system.activationScripts."00-snowman-import-sops-key" =
+      lib.mkIf usbCfg.enable ''
+        set -euo pipefail
+
+        TARGET="/var/lib/sops-nix/age.key"
+        USB_MOUNT="${usbCfg.path}"
+        USB_LABEL="${usbCfg.label}"
+        USB_KEY_FILE="${usbCfg.keyFile}"
+
+        if [ -f "$TARGET" ]; then
+          echo "[snowman] Existing SOPS age key at $TARGET – skipping USB import."
+          exit 0
+        fi
+
+        echo "[snowman] Importing SOPS age key from USB label ''${USB_LABEL}"
+
+        mkdir -p "$USB_MOUNT"
+
+        mounted_here=0
+        if ! mountpoint -q "$USB_MOUNT"; then
+          if [ -b "/dev/disk/by-label/$USB_LABEL" ]; then
+            echo "[snowman] Mounting /dev/disk/by-label/$USB_LABEL on $USB_MOUNT"
+            mount "/dev/disk/by-label/$USB_LABEL" "$USB_MOUNT"
+            mounted_here=1
+          else
+            echo "[snowman] ERROR: device with label $USB_LABEL not found."
+            exit 1
+          fi
+        fi
+
+        if [ ! -f "$USB_MOUNT/$USB_KEY_FILE" ]; then
+          echo "[snowman] ERROR: key file '$USB_KEY_FILE' not found on $USB_MOUNT."
+          if [ "$mounted_here" = 1 ]; then
+            umount "$USB_MOUNT" || true
+          fi
+          exit 1
+        fi
+
+        echo "[snowman] Copying key to $TARGET"
+        install -d -m 0700 /var/lib/sops-nix
+        install -m 0400 -o root -g root "$USB_MOUNT/$USB_KEY_FILE" "$TARGET"
+
+        if [ "$mounted_here" = 1 ]; then
+          umount "$USB_MOUNT" || true
+        fi
+
+        echo "[snowman] SOPS age key imported successfully."
+      '';
 
     assertions = sopsPasswordKeyAssertions;
   };

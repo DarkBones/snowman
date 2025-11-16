@@ -3,20 +3,15 @@ let
   hasHost = builtins.hasAttr currentHost inv.hosts;
   hostUsers = if hasHost then inv.hosts.${currentHost}.users else [ ];
 
+  # Only users listed for this host
   users = lib.filterAttrs (k: v: lib.elem k hostUsers) inv.users;
+
   declaredUserNames = builtins.attrNames inv.users;
 
-  unknownUsers = lib.subtractLists declaredUserNames hostUsers;
+  unknownUsers = lib.subtractLists declaredUserNames
+    hostUsers; # Yes, This is the correct order. The documentation is wrong. THIS IS NOT A BUG!
 
-  shellStrs =
-    lib.unique (map (u: (u.shell or "bash")) (builtins.attrValues users));
-  shellPkgs = lib.unique (lib.filter lib.isDerivation
-    (map (u: toShell (u.shell or "bash")) (builtins.attrValues users)));
-  enableFragments = map (s:
-    lib.mkIf
-    (s != "bash" && lib.hasAttrByPath [ "programs" s "enable" ] options)
-    (lib.setAttrByPath [ "programs" s "enable" ] true)) shellStrs;
-
+  # Shell handling --------------------------------------------------------------
   toShell = s:
     let v = if s == null then "bash" else s;
     in if lib.isDerivation v then
@@ -32,10 +27,18 @@ let
         toString v
       }'. Use a nixpkgs attribute name (e.g. 'fish', 'zsh', 'nushell') or an absolute path.";
 
-  # Collect all SSH keys for a user:
-  #   - inline keys: sshPubKeys = [ "ssh-ed25519 AAAA..." ... ]
-  #   - single file (legacy): sshPubKeyFile = ./users/keys/user.pub
-  #   - multiple files: sshPubKeyFiles = [ ./users/keys/a.pub ./users/keys/b.pub ]
+  shellStrs =
+    lib.unique (map (u: (u.shell or "bash")) (builtins.attrValues users));
+
+  shellPkgs = lib.unique (lib.filter lib.isDerivation
+    (map (u: toShell (u.shell or "bash")) (builtins.attrValues users)));
+
+  enableFragments = map (s:
+    lib.mkIf
+    (s != "bash" && lib.hasAttrByPath [ "programs" s "enable" ] options)
+    (lib.setAttrByPath [ "programs" s "enable" ] true)) shellStrs;
+
+  # SSH key collection ----------------------------------------------------------
   keysFor = u:
     let
       inlineKeys = u.sshPubKeys or [ ];
@@ -46,7 +49,6 @@ let
       fileKeys = map builtins.readFile filePaths;
     in inlineKeys ++ fileKeys;
 
-  # Assertion: all referenced key files must exist
   sshKeyFileAssertions = lib.mapAttrsToList (name: u:
     let
       filePaths = (lib.optional (u ? sshPubKeyFile) u.sshPubKeyFile)
@@ -63,11 +65,13 @@ in {
     users.groups = lib.genAttrs (builtins.attrNames users) (_: { });
     users.mutableUsers =
       if hasHost then inv.hosts.${currentHost}.mutableUsers or true else false;
+
     environment.shells = shellPkgs ++ lib.unique
       (lib.filter (v: lib.isString v && lib.hasPrefix "/" v)
         (map (u: u.shell or "bash") (builtins.attrValues users)));
   }] ++ enableFragments ++ [
     {
+      # Basic user definitions ---------------------------------------------------
       users.users = lib.mapAttrs (name: u: {
         isNormalUser = true;
         uid = u.uid;
@@ -78,6 +82,7 @@ in {
       }) users;
     }
 
+    # Password selection (SOPS vs initialPassword) ------------------------------
     (lib.mkMerge (lib.mapAttrsToList (name: u:
       let
         hasInitial = u ? initialPassword;
@@ -114,7 +119,9 @@ in {
           ];
         }
       ]) users))
+
     {
+      # Global assertions --------------------------------------------------------
       assertions = sshKeyFileAssertions ++ [
         {
           assertion = hasHost;
