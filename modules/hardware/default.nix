@@ -1,1 +1,1 @@
-{ ... }: { imports = [ ./from-inventory.nix ]; }
+{ ... }: { imports = [ ./from-inventory.nix ./boot-from-inventory.nix ]; }
