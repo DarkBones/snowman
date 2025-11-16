@@ -20,24 +20,28 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # Add your pinned dotfiles here, e.g.:
+    # Optional: add pinned dotfiles inputs here, e.g.:
     # bas-dotfiles = {
     #   url = "github:YourUserName/dotfiles";
     #   flake = false;
     # };
   };
 
-  outputs =
-    { self, nixpkgs, home-manager, sops-nix, snowman, disko, ... }@inputs:
+  outputs = { self, nixpkgs, home-manager, sops-nix, snowman, ... }@inputs:
     let
       lib = nixpkgs.lib;
 
       # This is YOUR inventory, not snowman's
       inv = import ./inventory.nix;
 
-      # This is you map your dotfile inputs
-      # TODO: Deprecate and put in inventory (per-user)
-      dotfilesSources = { bas = inputs.bas-dotfiles; };
+      # This is where you map your dotfiles inputs (optional).
+      #
+      # Example (if you added `bas-dotfiles` above):
+      #
+      # dotfilesSources = {
+      #   bas = inputs.bas-dotfiles;
+      # };
+      dotfilesSources = { };
 
       makePkgs = system:
         import nixpkgs {
@@ -51,7 +55,7 @@
         };
 
       mkNixosSpecialArgs = name: attrs: {
-        inherit home-manager inv sops-nix dotfilesSources disko;
+        inherit home-manager inv sops-nix dotfilesSources;
         pkgsUnstable = makePkgsUnstable attrs.system;
         modulesPath = "${nixpkgs}/nixos/modules";
         currentHost = name;
@@ -99,7 +103,6 @@
                 '';
               }];
             })
-
           ] ++ (attrs.extraModules or [ ]);
         };
     in { nixosConfigurations = lib.mapAttrs mkHost inv.hosts; };
