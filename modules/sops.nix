@@ -75,6 +75,11 @@ in {
       lib.mkIf usbCfg.enable ''
         set -euo pipefail
 
+        if (systemd-detect-virt > /dev/null); then
+           echo "[snowman] In a VM, skipping USB key import."
+           exit 0
+        fi
+
         TARGET="/var/lib/sops-nix/age.key"
         USB_MOUNT="${usbCfg.path}"
         USB_LABEL="${usbCfg.label}"
