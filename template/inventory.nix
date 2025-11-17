@@ -9,24 +9,34 @@
       hostname = "vm-snowman";
 
       ############################################################
-      ## Minimal hardware description used by Snowman
+      ## Optional hardware description used by Snowman
       ##
-      ## Adjust these values to match your VM/disk layout.
+      ## For most users you can leave this as-is or even remove it.
+      ## If `hardware` is omitted, Snowman:
+      ##   - imports your per-host hardware-configuration.nix, and
+      ##   - does NOT touch bootloader settings (installer config stays).
+      ##
+      ## If you want Snowman (and later disko) to understand / own
+      ## your disk + bootloader, fill this in correctly.
       ############################################################
-      hardware = {
-        # Is this machine booting in "bios" or "efi" mode?
-        boot = { firmware = "bios"; }; # or "efi"
-
-        # The *disk* that contains your root partition (no partition number)
-        bootDevice = "/dev/vda"; # e.g. /dev/sda, /dev/vda, /dev/nvme0n1
-
-        # Filesystem info for the root partition
-        fs = {
-          type = "ext4"; # e.g. "ext4", "btrfs"
-          partition = 1; # e.g. /dev/vda1 → 1
-          # swapGiB = 0;                # optional: swap size in GiB if you let Snowman/disko create it
-        };
-      };
+      # hardware = {
+      #   # Is this machine booting in "bios", "efi", or "none" mode?
+      #   #
+      #   #  - "bios" → Snowman configures GRUB on `bootDevice`.
+      #   #  - "efi"  → Snowman configures systemd-boot.
+      #   #  - "none" → Snowman does not touch bootloader settings.
+      #   boot = { firmware = "bios"; }; # "bios" | "efi" | "none"
+      #
+      #   # The *disk* that contains your root partition (no partition number)
+      #   bootDevice = "/dev/vda"; # e.g. /dev/sda, /dev/vda, /dev/nvme0n1
+      #
+      #   # Filesystem info for the root partition
+      #   fs = {
+      #     type = "ext4"; # e.g. "ext4", "btrfs"
+      #     partition = 1; # e.g. /dev/vda1 → 1
+      #     # swapGiB = 0;                # optional: swap size in GiB if you let Snowman/disko create it
+      #   };
+      # };
 
       # Reserved for future disko integration (uses `hardware.*` above)
       provision.disk.enable = false;
@@ -57,8 +67,11 @@
     #   system = "x86_64-linux";
     #   users  = [ "alice" ];
     #
+    #   # Optional advanced hardware inventory. If omitted, Snowman will
+    #   # simply use the imported hardware-configuration.nix and not touch
+    #   # bootloader settings.
     #   hardware = {
-    #     boot = { firmware = "efi"; };   # "bios" or "efi"
+    #     boot = { firmware = "efi"; };   # "bios" | "efi" | "none"
     #     bootDevice = "/dev/nvme0n1";    # disk, no partition suffix
     #     fs = {
     #       type = "ext4";                # e.g. "ext4", "btrfs"

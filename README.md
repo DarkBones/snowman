@@ -4,10 +4,10 @@ Snowman is an **inventory-driven NixOS framework** designed to be a reusable “
 
 It is built on a **distro + template** model:
 
-* **The Snowman Repo (this one):**  
+* **The Snowman Repo (this one):**
   The *engine*. It provides all core modules for users, hardware, secrets, and roles.
 
-* **Your Config Repo (created from the template):**  
+* **Your Config Repo (created from the template):**
   The *car*. This contains your personal `inventory.nix`, secrets, user definitions, host definitions, dotfiles settings, etc.
 
 You own your config repo forever. Snowman stays the clean, reusable engine underneath.
@@ -16,7 +16,7 @@ You own your config repo forever. Snowman stays the clean, reusable engine under
 
 # 🚀 Step 1 — Create Your Personal Config Repo
 
-**Do not clone this repo directly for personal use.**  
+**Do not clone this repo directly for personal use.**
 Instead, generate your *own* repo from Snowman's template.
 
 ### Option A: GitHub UI
@@ -28,7 +28,7 @@ Click the green **“Use this template”** button on this repo’s GitHub page.
 ```bash
 nix flake new -t github:DarkBones/snowman#default my-personal-config
 cd my-personal-config
-````
+```
 
 This creates your own fresh Snowman-powered configuration directory.
 
@@ -247,9 +247,15 @@ accidentally lose edits.
 Snowman’s flake wiring will automatically import this file for the host and
 fail with a clear error if it’s missing.
 
-## 4. Fill in the `hardware` block in `inventory.nix`
+## 4. (Optional, advanced) Add a `hardware` block in `inventory.nix`
 
-Each host entry in your `inventory.nix` should have a `hardware` block:
+For **most users**, you do **not** need a `hardware` block at all:
+
+* Snowman will import your `hosts/<host>-hardware-configuration.nix`.
+* The bootloader and partitioning from the installer will remain as-is.
+* Snowman will manage users, secrets, SSH, and home-manager on top.
+
+If you **want Snowman (and later disko) to understand and possibly own the disk/boot setup**, you can add a structured `hardware` block:
 
 ```nix
 hosts.my-laptop = {
@@ -257,7 +263,7 @@ hosts.my-laptop = {
   users  = [ "alice" ];
 
   hardware = {
-    boot = { firmware = "efi"; }; # "efi" or "bios"
+    boot = { firmware = "efi"; }; # "efi", "bios", or "none"
     bootDevice = "/dev/sda";      # whole disk, not a partition
     fs = {
       type = "ext4";              # or "btrfs", "xfs", ...
@@ -270,14 +276,20 @@ hosts.my-laptop = {
 };
 ```
 
-This `hardware` information is used by Snowman for things like future disk
-provisioning (via disko). It doesn’t replace `hardware-configuration.nix` —
-you need **both**:
+Behavior:
 
-* `hosts/<host>-hardware-configuration.nix` → full machine-specific module
-* `hosts.<host>.hardware` → structured “inventory view” Snowman can reason about
+* If `hardware` is **omitted**, or `boot.firmware = "none"`, Snowman **does not touch bootloader settings**. Your installer-chosen bootloader stays as-is.
+* If `hardware.boot.firmware = "bios"` or `"efi"`, Snowman configures:
 
-### How to find the values Snowman expects
+  * GRUB (BIOS) on `bootDevice` (default `/dev/vda` if unset), or
+  * systemd-boot (EFI).
+
+The `hardware` block is primarily used for:
+
+* Future disk provisioning (via disko).
+* Declarative control over bootloader when you opt into that.
+
+### How to find the values Snowman expects (if you use `hardware`)
 
 All the information you need already exists on the installed system.
 
@@ -350,14 +362,20 @@ Rough rule of thumb:
   hardware.boot.firmware = "bios";
   ```
 
+* If you explicitly **do not** want Snowman to touch bootloader settings, set:
+
+  ```nix
+  hardware.boot.firmware = "none";
+  ```
+
 You don’t have to be perfect for Snowman to work; this setting is mainly for
-disko / re-provisioning workflows.
+disko / re-provisioning workflows and bootloader control.
 
 ## 5. Switch the machine to your Snowman config
 
 Once:
 
-* your host exists in `inventory.nix` (with `hardware` filled in),
+* your host exists in `inventory.nix`,
 * the matching `hosts/<host>-hardware-configuration.nix` file exists
   (created via `snowman-import-hardware`), and
 * your users are wired up,
@@ -482,6 +500,7 @@ hosts = {
     system = "x86_64-linux";
     users  = [ "alice" ];
 
+    # Optional: advanced boot/disk inventory for Snowman + disko
     hardware = {
       boot = { firmware = "efi"; };
       bootDevice = "/dev/sda";
@@ -499,12 +518,13 @@ Required per host:
 * `system` – NixOS system type (e.g. `"x86_64-linux"`)
 * `users` – list of user names that should exist on this host
 
-Strongly recommended:
-
-* `hardware` – the block above (used for disk/provisioning logic)
-
 Optional, but useful:
 
+* `hardware` – advanced block used for bootloader control and future disk/provisioning logic
+
+  * If omitted, Snowman simply uses your imported `hardware-configuration.nix` and does not change bootloader settings.
+  * If present with `boot.firmware = "bios"` or `"efi"`, Snowman configures GRUB/systemd-boot based on it.
+  * If set to `boot.firmware = "none"`, Snowman explicitly **does not** touch bootloader settings.
 * `mutableUsers` – if `false`, users are only managed via Nix (no `passwd` edits)
 * `hostname` – if you want a different runtime hostname than the attr name
 * `profiles` – built-in NixOS profiles (e.g. `"qemu-guest"`)
