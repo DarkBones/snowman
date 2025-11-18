@@ -1,3 +1,5 @@
+# modules/bootstrap-usb.nix
+
 { lib, inv, currentHost, sopsConfigPath, ... }:
 let
   hasHost = builtins.hasAttr currentHost inv.hosts;
@@ -7,8 +9,6 @@ let
   sopsContent = builtins.readFile sopsConfigPath;
 
   # Check if "&hostname" exists in the file.
-  # We look for the anchor followed by a space to avoid partial matches 
-  # (e.g., preventing "&host-2" from matching "&host").
   isRotated = !(builtins.match ".*&${currentHost} .*" sopsContent == null);
 
   # Logic: Enable USB ONLY if user wants it AND we haven't rotated yet.
@@ -32,17 +32,17 @@ in {
       fsType = host.bootstrap.usb.fsType or "vfat";
       options = [ "nofail" ];
     };
+
+    assertions = [{
+      assertion = !isQemuGuest;
+      message = ''
+        ❌ Snowman: 'bootstrap.usb.enable = true' is set on host "${currentHost}",
+            which also uses the 'qemu-guest' profile.
+
+            This will fail the boot, as the USB key script cannot run in a VM.
+
+            Fix: Set 'bootstrap.usb.enable = false;' in your inventory.nix for this host.
+      '';
+    }];
   };
-
-  assertions = [{
-    assertion = !isQemuGuest;
-    message = ''
-      ❌ Snowman: 'bootstrap.usb.enable = true' is set on host "${currentHost}",
-         which also uses the 'qemu-guest' profile.
-
-         This will fail the boot, as the USB key script cannot run in a VM.
-
-         Fix: Set 'bootstrap.usb.enable = false;' in your inventory.nix for this host.
-    '';
-  }];
 }
