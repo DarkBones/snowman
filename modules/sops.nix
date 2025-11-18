@@ -11,6 +11,10 @@ let
     lib.filterAttrs (name: u: lib.elem name hostUsers && (u ? secrets.sopsFile))
     inv.users;
 
+  isRotated = config.snowman.isRotated;
+  usbConfigured = host.bootstrap.usb.enable or false;
+  usbMode = usbConfigured && (!isRotated);
+
   mkSecretsForUser = userName:
     let
       u = inv.users.${userName};
@@ -59,71 +63,70 @@ in {
     # Always use a local key file; for USB mode we copy into here.
     sops = {
       validateSopsFiles = false;
-
       age = {
         keyFile = "/var/lib/sops-nix/age.key";
-        # If we're NOT in bootstrap.usb mode, let sops-nix generate a key.
-        # If we ARE in bootstrap.usb mode, we provide the key ourselves below.
-        generateKey = !usbCfg.enable;
-      };
 
+        # If we have rotated (isRotated = true), usbMode becomes false.
+        # generateKey becomes true. 
+        # Sops-nix will then find the SSH host key automatically.
+        generateKey = !usbMode;
+      };
       secrets = allSecrets;
     };
 
     # Bootstrap: copy age key from USB -> /var/lib/sops-nix/age.key (once)
-    system.activationScripts."00-snowman-import-sops-key" =
-      lib.mkIf usbCfg.enable ''
-        set -euo pipefail
+    system.activationScripts."00-snowman-import-sops-key" = lib.mkIf usbMode ''
+      set -euo pipefail
 
-        if (systemd-detect-virt > /dev/null); then
-           echo "[snowman] In a VM, skipping USB key import."
-           exit 0
-        fi
+      if (systemd-detect-virt > /dev/null); then
+         echo "[snowman] In a VM, skipping USB key import."
+         exit 0
+      fi
 
-        TARGET="/var/lib/sops-nix/age.key"
-        USB_MOUNT="${usbCfg.path}"
-        USB_LABEL="${usbCfg.label}"
-        USB_KEY_FILE="${usbCfg.keyFile}"
+      TARGET="/var/lib/sops-nix/age.key"
+      USB_MOUNT="${usbCfg.path}"
+      USB_LABEL="${usbCfg.label}"
+      USB_KEY_FILE="${usbCfg.keyFile}"
 
-        if [ -f "$TARGET" ]; then
-          echo "[snowman] Existing SOPS age key at $TARGET – skipping USB import."
-          exit 0
-        fi
+      if [ -f "$TARGET" ]; then
+        echo "[snowman] Existing SOPS age key at $TARGET – skipping USB import."
+        exit 0
+      fi
 
-        echo "[snowman] Importing SOPS age key from USB label ''${USB_LABEL}"
+      echo "[snowman] Importing SOPS age key from USB label ''${USB_LABEL}"
 
-        mkdir -p "$USB_MOUNT"
+      mkdir -p "$USB_MOUNT"
 
-        mounted_here=0
-        if ! mountpoint -q "$USB_MOUNT"; then
-          if [ -b "/dev/disk/by-label/$USB_LABEL" ]; then
-            echo "[snowman] Mounting /dev/disk/by-label/$USB_LABEL on $USB_MOUNT"
-            mount "/dev/disk/by-label/$USB_LABEL" "$USB_MOUNT"
-            mounted_here=1
-          else
-            echo "[snowman] ERROR: device with label $USB_LABEL not found."
-            exit 1
-          fi
-        fi
-
-        if [ ! -f "$USB_MOUNT/$USB_KEY_FILE" ]; then
-          echo "[snowman] ERROR: key file '$USB_KEY_FILE' not found on $USB_MOUNT."
-          if [ "$mounted_here" = 1 ]; then
-            umount "$USB_MOUNT" || true
-          fi
+      mounted_here=0
+      if ! mountpoint -q "$USB_MOUNT"; then
+        if [ -b "/dev/disk/by-label/$USB_LABEL" ]; then
+          echo "[snowman] Mounting /dev/disk/by-label/$USB_LABEL on $USB_MOUNT"
+          mount "/dev/disk/by-label/$USB_LABEL" "$USB_MOUNT"
+          mounted_here=1
+        else
+          echo "[snowman] ERROR: device with label $USB_LABEL not found."
           exit 1
         fi
+      fi
 
-        echo "[snowman] Copying key to $TARGET"
-        install -d -m 0700 /var/lib/sops-nix
-        install -m 0400 -o root -g root "$USB_MOUNT/$USB_KEY_FILE" "$TARGET"
-
+      if [ ! -f "$USB_MOUNT/$USB_KEY_FILE" ]; then
+        echo "[snowman] ERROR: key file '$USB_KEY_FILE' not found on $USB_MOUNT."
         if [ "$mounted_here" = 1 ]; then
           umount "$USB_MOUNT" || true
         fi
+        exit 1
+      fi
 
-        echo "[snowman] SOPS age key imported successfully."
-      '';
+      echo "[snowman] Copying key to $TARGET"
+      install -d -m 0700 /var/lib/sops-nix
+      install -m 0400 -o root -g root "$USB_MOUNT/$USB_KEY_FILE" "$TARGET"
+
+      if [ "$mounted_here" = 1 ]; then
+        umount "$USB_MOUNT" || true
+      fi
+
+      echo "[snowman] SOPS age key imported successfully."
+    '';
 
     assertions = sopsPasswordKeyAssertions;
   };
