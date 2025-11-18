@@ -169,6 +169,60 @@ git push
 
 Your config repo is now ready to be used on a real machine.
 
+# 🏗️ Where to Put Your Configuration
+
+Snowman is layered. Depending on what you are trying to configure, you will edit one of three places:
+
+### 1. `inventory.nix` (The Blueprint)
+
+**Use for:** Infrastructure, Users, Secrets.
+
+This is the high-level view of your fleet. You use this to define **existence**:
+
+  * "This host exists."
+  * "This user exists on this host."
+  * "This user is a `dev` and has `secrets`."
+  * "This disk partition layout is X."
+
+### 2. `hosts/<host-name>.nix` (The System Config)
+
+**Use for:** Machine-specific system services, timezones, and standard NixOS options.
+
+This file is a standard NixOS module. Snowman imports it automatically. You use this for **system behavior**:
+
+```nix
+# hosts/my-laptop.nix
+{ pkgs, ... }: {
+  imports = [
+    ./my-laptop-hardware-configuration.nix # Imported via snowman-import-hardware
+  ];
+
+  # Standard NixOS configuration goes here:
+  time.timeZone = "America/New_York";
+  networking.hostId = "8425e349"; # Required for ZFS
+  
+  # Enable specific services for this machine
+  services.tailscale.enable = true;
+  services.nginx.enable = true;
+
+  environment.systemPackages = [ pkgs.vim ];
+}
+```
+
+### 3. `home/roles/*.nix` (The User Config)
+
+**Use for:** Reusable user environments (Home Manager).
+
+If you want to configure tools, shells, or dotfiles that a user carries with them across multiple machines, write a **Role**.
+
+1.  Create `home/roles/gaming.nix` (standard Home Manager module).
+
+2.  Enable it in `inventory.nix`:
+
+    ```nix
+    users.alice.roles.gaming.enable = true;
+    ```
+
 ---
 
 # 🖥️ Step 3 — Install NixOS Normally, Then Hand Control to Snowman
