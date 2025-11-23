@@ -107,7 +107,7 @@
       shell = "zsh";
 
       # Replace with your real SSH public key(s)
-      sshPubKeys = [ "ssh-ed25519 AAAA... REPLACE_ME_WITH_YOUR_PUBLIC_KEY" ];
+      # sshPubKeys = [ "ssh-ed25519 AAAA... REPLACE_ME_WITH_YOUR_PUBLIC_KEY" ];
 
       # Alternative file-based styles:
       # sshPubKeyFile  = ./users/keys/bas.pub;
