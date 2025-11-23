@@ -57,6 +57,7 @@
       mkNixosSpecialArgs = name: attrs: {
         inherit home-manager inv sops-nix dotfilesSources;
         pkgsUnstable = makePkgsUnstable attrs.system;
+        pkgs = makePkgs attrs.system;
         modulesPath = "${nixpkgs}/nixos/modules";
         currentHost = name;
         sopsConfigPath = ./.sops.yaml;
