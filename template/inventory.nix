@@ -129,7 +129,7 @@
       roles = {
         bas.enable = true;
         dev.enable = true;
-        # ssh.enable = true;    # defaults to true if omitted
+        ssh.enable = false;    # defaults to true if omitted
         secrets.enable = true;
 
         # You can define more roles here, e.g.:
