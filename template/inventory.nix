@@ -121,7 +121,7 @@
       # };
 
       # Simple alternative for first install (not recommended long-term):
-      # initialPassword = "changeme";
+      initialPassword = "snowman";
 
       # Optional extra Home Manager config:
       # envFile = ./users/env/bas.nix;
