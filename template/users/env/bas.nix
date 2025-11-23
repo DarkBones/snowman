@@ -9,6 +9,6 @@
     LANG = "en_US.UTF-8";
     FLAKE = "~/Developer/snowman";
 
-    TEST_PATH = osConfig.sops.secrets.test.path;
+    TEST_SECRET_PATH = osConfig.sops.secrets.test.path;
   };
 }
