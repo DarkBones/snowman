@@ -127,8 +127,8 @@
       # envFile = ./users/env/bas.nix;
 
       roles = {
-        dev.enable = true;
         bas.enable = true;
+        dev.enable = true;
         # ssh.enable = true;    # defaults to true if omitted
         secrets.enable = true;
 
@@ -139,7 +139,7 @@
         # actually apply that role (e.g. gaming PC vs. work laptop).
 
         dotfiles = {
-          enable = false;
+          enable = true;
 
           ############################################################
           ## MODE SELECTION
@@ -165,7 +165,7 @@
           ############################################################
           ## SHARED SETTINGS (BOTH MODES)
           ############################################################
-          repo = "github:DarkBones/dotfiles";
+          repo = "https://github.com/DarkBones/dotfiles.git";
           dir = "Developer/dotfiles";
           branch = "main";
           sparse = [ "nvim" "zsh" ];
