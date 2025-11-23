@@ -51,6 +51,17 @@
       #   items = { };
       # };
 
+      # Optional per-host role filter:
+      #
+      # If omitted, all roles with `users.<name>.roles.<role>.enable = true`
+      # are applied on this host.
+      #
+      # If set, only roles whose *names* appear in this list are applied.
+      # This lets you reuse the same user across multiple machines, but
+      # avoid running e.g. a `gaming` role on a work laptop or server.
+      #
+      # availableRoles = [ "bas" "ssh" "dev" "secrets" ];
+
       users = [ "bas" ];
 
       bootstrap.usb = {
@@ -63,7 +74,7 @@
     };
 
     # Example:
-    # my-laptop = {
+    # work-laptop = {
     #   system = "x86_64-linux";
     #   users  = [ "alice" ];
     #
@@ -79,6 +90,11 @@
     #       # swapGiB = 8;                # optional swap on same disk
     #     };
     #   };
+    #
+    #   # Only allow a subset of roles on this host. For example,
+    #   # skip a hypothetical `gaming` role here:
+    #   #
+    #   # availableRoles = [ "dev" "secrets" "ssh" "my_company" ];
     #
     #   # provision.disk.enable = true;   # when you want Snowman+disko to own the disk
     # };
@@ -116,22 +132,51 @@
         # ssh.enable = true;    # defaults to true if omitted
         secrets.enable = true;
 
+        # You can define more roles here, e.g.:
+        # gaming.enable = true; # installs Steam, GPU drivers, etc.
+        #
+        # Then use `hosts.<host>.availableRoles` to choose which hosts
+        # actually apply that role (e.g. gaming PC vs. work laptop).
+
         dotfiles = {
           enable = false;
 
-          # Pinned mode (flake input) — if set and found in dotfilesSources:
+          ############################################################
+          ## MODE SELECTION
+          ##
+          ## If `sourceKey` resolves in dotfilesSources (specialArgs),
+          ## we use *pinned mode* (flake input in the Nix store).
+          ##
+          ## If `sourceKey` is null or doesn't resolve, we fall back
+          ## to *git mode* (clone/pull at activation time).
+          ############################################################
+
+          # PINNED MODE (reproducible; uses flake input)
+          # default = "username" # Defaults to `home.username` if omitted
           # sourceKey = "bas";
 
-          # Git mode (used when sourceKey is unset or not found):
-          repo = "github:YourUser/dotfiles";
+          # GIT MODE (NON-REPRODUCIBLE)
+          # Only used when pinned mode is NOT active.
+          # repo = "git@github.com:DarkBones/.dotfiles.git";
+          # dir = "Developer/dotfiles";
+          # branch = "main";
+          # sparse = [ "nvim" "zsh" ];
+
+          ############################################################
+          ## SHARED SETTINGS (BOTH MODES)
+          ############################################################
+          repo = "github:DarkBones/dotfiles";
           dir = "Developer/dotfiles";
           branch = "main";
           sparse = [ "nvim" "zsh" ];
 
+          ############################################################
+          ## SHARED SETTINGS (BOTH MODES)
+          ############################################################
           linkMap = {
-            # ".config/nvim" = "nvim/.config/nvim";
-            # ".zsh"         = "zsh/.zsh";
-            # ".zshrc"       = "zsh/.zshrc";
+            ".config/nvim" = "nvim/.config/nvim";
+            ".zsh" = "zsh/.zsh";
+            ".zshrc" = "zsh/.zshrc";
           };
         };
       };
@@ -142,8 +187,12 @@
     #   groups = [ "wheel" ];
     #   shell = "bash";
     #   sshPubKeyFiles = [ ./users/keys/alice.pub ];
-    #   roles.dev.enable = true;
-    #   roles.ssh.enable = true;
+    #
+    #   roles = {
+    #     dev.enable = true;
+    #     ssh.enable = true;
+    #     # gaming.enable = true;
+    #   };
     # };
   };
 }

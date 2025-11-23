@@ -179,10 +179,11 @@ Snowman is layered. Depending on what you are trying to configure, you will edit
 
 This is the high-level view of your fleet. You use this to define **existence**:
 
-  * "This host exists."
-  * "This user exists on this host."
-  * "This user is a `dev` and has `secrets`."
-  * "This disk partition layout is X."
+* "This host exists."
+* "This user exists on this host."
+* "This user is a `dev` and has `secrets`."
+* "This disk partition layout is X."
+* "This host allows these roles for these users."
 
 ### 2. `hosts/<host-name>.nix` (The System Config)
 
@@ -200,7 +201,7 @@ This file is a standard NixOS module. Snowman imports it automatically. You use 
   # Standard NixOS configuration goes here:
   time.timeZone = "America/New_York";
   networking.hostId = "8425e349"; # Required for ZFS
-  
+
   # Enable specific services for this machine
   services.tailscale.enable = true;
   services.nginx.enable = true;
@@ -215,13 +216,16 @@ This file is a standard NixOS module. Snowman imports it automatically. You use 
 
 If you want to configure tools, shells, or dotfiles that a user carries with them across multiple machines, write a **Role**.
 
-1.  Create `home/roles/gaming.nix` (standard Home Manager module).
+1. Create `home/roles/gaming.nix` (standard Home Manager module).
 
-2.  Enable it in `inventory.nix`:
+2. Enable it in `inventory.nix`:
 
-    ```nix
-    users.alice.roles.gaming.enable = true;
-    ```
+   ```nix
+   users.alice.roles.gaming.enable = true;
+   ```
+
+3. (Optional) Restrict which roles can run on a specific host using
+   `availableRoles` – host-level **role allowlist**. If set, only roles whose names appear in this list are applied for users on this host, even if the user has more roles enabled. If omitted, all `roles.<name>.enable = true` roles are applied.
 
 ---
 
@@ -326,7 +330,7 @@ hosts.my-laptop = {
     };
   };
 
-  # ... other host settings (secrets, bootstrap.usb, profiles, ...)
+  # ... other host settings (secrets, bootstrap.usb, profiles, availableRoles, ...)
 };
 ```
 
@@ -524,10 +528,10 @@ hosts.my-laptop.secrets = {
   sopsFile = ./hosts/secrets/my-laptop_secrets.yml;
   items = {
     wireguard-private-key = {
-      key = "wireguard-private-key"; # YAML key path
+      key   = "wireguard-private-key"; # YAML key path
       owner = "root";
       group = "root";
-      mode = "0400";
+      mode  = "0400";
     };
   };
 };
@@ -563,6 +567,11 @@ hosts = {
         partition = 1;
       };
     };
+
+    # Optional: per-host role filter
+    # If omitted, all enabled user roles run here.
+    # If set, only roles in this list are applied:
+    # availableRoles = [ "dev" "secrets" ];
   };
 };
 ```
@@ -579,6 +588,7 @@ Optional, but useful:
   * If omitted, Snowman simply uses your imported `hardware-configuration.nix` and does not change bootloader settings.
   * If present with `boot.firmware = "bios"` or `"efi"`, Snowman configures GRUB/systemd-boot based on it.
   * If set to `boot.firmware = "none"`, Snowman explicitly **does not** touch bootloader settings.
+* `availableRoles` – host-level **role allowlist**. If set, only roles whose names appear in this list are applied for users on this host. If omitted, all `roles.<name>.enable = true` roles are applied.
 * `mutableUsers` – if `false`, users are only managed via Nix (no `passwd` edits)
 * `hostname` – if you want a different runtime hostname than the attr name
 * `profiles` – built-in NixOS profiles (e.g. `"qemu-guest"`)
@@ -685,7 +695,7 @@ Snowman uses `userPasswordHashKey` as `hashedPasswordFile` for that user.
 
 > **Note:** SSH is configured as **publickey-only** by default. Passwords are mainly for local TTY login unless you explicitly loosen SSH settings in your host config.
 
-### Home roles
+### Home roles & host filtering
 
 Home roles live under `users.<name>.roles` and are consumed by Snowman’s home-manager modules.
 
@@ -696,6 +706,8 @@ users.alice.roles = {
   dev.enable     = true; # your own dev role in home/roles/dev.nix
   ssh.enable     = true; # ensure outbound SSH key exists
   secrets.enable = true; # include `sops` CLI
+  gaming.enable  = true; # e.g. Steam, GPU drivers on gaming PC only
+
   dotfiles = {
     enable    = true;
     sourceKey = "alice"; # pinned mode
@@ -707,42 +719,45 @@ users.alice.roles = {
 };
 ```
 
-`dotfiles` supports two modes:
+By default, **all roles with `enable = true` are applied** for that user on any host they appear on.
 
-1. **Pinned mode** (reproducible):
+If you set `hosts.<host>.availableRoles`, Snowman will:
 
-   * Add a flake input for your dotfiles:
+1. Take the set of roles where `roles.<name>.enable = true`.
+2. Intersect it with `availableRoles`.
+3. Only apply the resulting subset on that host.
 
-     ```nix
-     inputs.alice-dotfiles = {
-       url   = "github:YourName/dotfiles";
-       flake = false;
-     };
-     ```
+Example:
 
-   * Map it in your flake:
+```nix
+users.bas.roles = {
+  bas.enable     = true;
+  dev.enable     = true;
+  secrets.enable = true;
+  ssh.enable     = true;
+  gaming.enable  = true; # installs Steam, GPU drivers, etc.
+};
 
-     ```nix
-     dotfilesSources = {
-       alice = inputs.alice-dotfiles;
-     };
-     ```
+hosts.gaming-pc = {
+  system = "x86_64-linux";
+  users  = [ "bas" ];
 
-   * Set `sourceKey = "alice"` in `roles.dotfiles`.
+  # availableRoles = [ "bas" "dev" "secrets" "ssh" "gaming" ]; # <- defaults to all available
+};
 
-2. **Git mode** (non-reproducible, but simple):
+hosts.work-laptop = {
+  system = "x86_64-linux";
+  users  = [ "bas" ];
 
-   * Leave `sourceKey` unset or not found in `dotfilesSources`
-   * Configure:
+  # No Steam, no gaming stack on the work machine:
+  availableRoles = [ "bas" "dev" "secrets" "ssh" ];
+};
+```
 
-     ```nix
-     repo   = "git@github.com:YourName/dotfiles.git";
-     dir    = "Developer/dotfiles";
-     branch = "main";
-     sparse = [ "nvim" "zsh" ];
-     ```
+On `gaming-pc`, all five roles are applied.
+On `work-laptop`, `gaming` is ignored even though it’s enabled for `bas`.
 
-In both modes, `linkMap` defines how paths inside the repo are linked into `$HOME`.
+This lets you **reuse the same logical user across many machines** while keeping host-specific role policies declarative and centralised in `inventory.nix`.
 
 ### Releases
 
@@ -942,6 +957,8 @@ Current roles:
   * via **git mode** (clone/pull at activation time).
 
 These roles are **opt-in** (`enable = true` in the inventory example); if you omit them or set `enable = false`, Snowman simply won’t apply that home-manager role.
+
+Combined with `hosts.<host>.availableRoles`, you can define a **rich set of roles per user** and still keep each host’s active role set tight and appropriate.
 
 ---
 
