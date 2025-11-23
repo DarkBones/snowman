@@ -5,7 +5,7 @@
   hosts = {
     vm-snowman = {
       system = "x86_64-linux";
-      mutableUsers = false;
+      mutableUsers = true;
       hostname = "vm-snowman";
 
       ############################################################
