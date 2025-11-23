@@ -4,13 +4,30 @@ in if !hasHost then
   { }
 else
   let
+    hostCfg = inv.hosts.${currentHost};
     hostUsers =
-      lib.filterAttrs (n: u: lib.elem n (inv.hosts.${currentHost}.users or [ ]))
-      inv.users;
+      lib.filterAttrs (n: u: lib.elem n (hostCfg.users or [ ])) inv.users;
+
+    hostRoleFilter = hostCfg.availableRoles or null;
   in {
     config = {
       home-manager.users = lib.genAttrs (builtins.attrNames hostUsers) (name:
-        let u = hostUsers.${name};
+        let
+          u = hostUsers.${name};
+
+          userRoles = u.roles or { };
+
+          # Only roles that are explicitly enabled
+          enabledUserRoles =
+            lib.filterAttrs (_: roleCfg: roleCfg ? enable && roleCfg.enable)
+            userRoles;
+
+          # If host.availableRoles is set, restrict to that list
+          finalRoles = if hostRoleFilter == null then
+            enabledUserRoles
+          else
+            lib.filterAttrs (roleName: _: lib.elem roleName hostRoleFilter)
+            enabledUserRoles;
         in {
           imports = [ ./default.nix ] ++ extraHomeImports
             ++ lib.optional (u ? envFile) u.envFile;
@@ -23,7 +40,8 @@ else
 
           programs.home-manager.enable = true;
           systemd.user.startServices = false;
-          roles = u.roles or { };
+
+          roles = finalRoles;
         });
 
       assertions = lib.mapAttrsToList (name: u: {
