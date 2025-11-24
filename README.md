@@ -1,22 +1,25 @@
 # Snowman ⛄
 
-Snowman is an **inventory-driven NixOS framework** designed to be a reusable “engine” for your own personal, reproducible NixOS configuration.
+Snowman is an **inventory-driven NixOS framework** designed to be a reusable **base** for your own personal, reproducible NixOS configuration.
 
-It is built on a **distro + template** model:
+It is built on a **distro + template** model and a literal **snowman**:
 
-* **The Snowman Repo (this one):**
-  The *engine*. It provides all core modules for users, hardware, secrets, and roles.
+- **The Snowman Repo (this one):**  
+  The **base**. It provides all core modules for users, hardware, secrets, and roles.
 
-* **Your Config Repo (created from the template):**
-  The *car*. This contains your personal `inventory.nix`, secrets, user definitions, host definitions, dotfiles settings, etc.
+- **Your Config Repo (created from the template):**  
+  The **body**. This contains your personal `inventory.nix`, secrets, user definitions, host definitions, dotfiles wiring, etc.
 
-You own your config repo forever. Snowman stays the clean, reusable engine underneath.
+- **Your Dotfiles Repo (optional, but recommended):**  
+  The **head**. This is where your actual editor/shell/tool configs live. Snowman’s roles (e.g. `roles.dotfiles`) mount that “head” onto your Snowman body.
+
+You own your **body repo** forever. Snowman stays the clean, reusable **base** underneath, and your **head** (dotfiles) can evolve independently.
 
 ---
 
-# 🚀 Step 1 — Create Your Personal Config Repo
+# 🚀 Step 1 — Create Your Personal Config Repo (Snowman Body)
 
-**Do not clone this repo directly for personal use.**
+**Do not clone this repo directly.** 
 Instead, generate your *own* repo from Snowman's template.
 
 ### Option A: GitHub UI
@@ -28,15 +31,15 @@ Click the green **“Use this template”** button on this repo’s GitHub page.
 ```bash
 nix flake new -t github:DarkBones/snowman#default my-personal-config
 cd my-personal-config
-```
+````
 
-This creates your own fresh Snowman-powered configuration directory.
+This creates your own fresh **Snowman body repo** (configuration directory) powered by the Snowman base.
 
 ---
 
 # 🧭 Step 2 — Configure Your System (Inventory First)
 
-Everything you edit happens *inside your personal config repo*.
+Everything you edit happens *inside your personal config/body repo*.
 Your new `my-personal-config/` directory is now your “forever config.”
 
 Inside it:
@@ -167,11 +170,19 @@ git commit -m "Initial Snowman setup"
 git push
 ```
 
-Your config repo is now ready to be used on a real machine.
+Your **body repo** is now ready to be used on a real machine.
 
-# 🏗️ Where to Put Your Configuration
+---
 
-Snowman is layered. Depending on what you are trying to configure, you will edit one of three places:
+# 🏗️ Where to Put Your Configuration (Base, Body & Head)
+
+Snowman is layered. Depending on what you are trying to configure, you will edit one of three things:
+
+* The **base** (this Snowman repo) — only if you are developing Snowman itself.
+* Your **body repo** (personal config) — where hosts, users, roles, and wiring live.
+* Your **head repo** (dotfiles) — where your actual editor/shell/tool configs live.
+
+Within the **body repo**, you usually touch one of three areas:
 
 ### 1. `inventory.nix` (The Blueprint)
 
@@ -189,7 +200,7 @@ This is the high-level view of your fleet. You use this to define **existence**:
 
 **Use for:** Machine-specific system services, timezones, and standard NixOS options.
 
-This file is a standard NixOS module. Snowman imports it automatically. You use this for **system behavior**:
+This file is a standard NixOS module. Snowman (the base) imports it automatically via the body repo. You use this for **system behavior**:
 
 ```nix
 # hosts/my-laptop.nix
@@ -227,13 +238,15 @@ If you want to configure tools, shells, or dotfiles that a user carries with the
 3. (Optional) Restrict which roles can run on a specific host using
    `availableRoles` – host-level **role allowlist**. If set, only roles whose names appear in this list are applied for users on this host, even if the user has more roles enabled. If omitted, all `roles.<name>.enable = true` roles are applied.
 
+Separate from that, your **head repo** (dotfiles) is mounted via roles like `roles.dotfiles`, which tell Snowman where to pull your head from and how to attach it.
+
 ---
 
 # 🖥️ Step 3 — Install NixOS Normally, Then Hand Control to Snowman
 
 Snowman assumes the following workflow:
 
-> **Install NixOS with the normal installer, reboot, log in as your user, then switch the machine over to your Snowman config.**
+> **Install NixOS with the normal installer, reboot, log in as your user, then switch the machine over to your Snowman body repo.**
 
 You do **not** run Snowman from the live ISO after installation.
 
@@ -252,12 +265,12 @@ On the target machine:
 
 The installer will write its own `/etc/nixos/configuration.nix` and
 `/etc/nixos/hardware-configuration.nix`. Think of these as **temporary**:
-Snowman will replace them.
+your Snowman **body repo**, powered by the base, will replace them.
 
 3. Reboot into the freshly installed system.
 4. Log in as the user you created during installation.
 
-## 2. Clone your Snowman config repo on the installed system
+## 2. Clone your Snowman config/body repo on the installed system
 
 On the newly installed system:
 
@@ -270,12 +283,12 @@ git clone git@github.com:YourName/my-personal-config.git
 cd my-personal-config
 ```
 
-From now on, **all commands are run inside this repo**, as that user.
+From now on, **all commands are run inside this body repo**, as that user.
 
 ## 3. Import the installer’s hardware configuration
 
 The installer already generated `/etc/nixos/hardware-configuration.nix`
-for this machine. Snowman wants that file **inside your config repo**, under
+for this machine. Snowman wants that file **inside your body repo**, under
 a host-specific name, and it will assert that it exists.
 
 Use the helper script from the template:
@@ -311,7 +324,7 @@ For **most users**, you do **not** need a `hardware` block at all:
 
 * Snowman will import your `hosts/<host>-hardware-configuration.nix`.
 * The bootloader and partitioning from the installer will remain as-is.
-* Snowman will manage users, secrets, SSH, and home-manager on top.
+* Snowman (base + body) will manage users, secrets, SSH, and home-manager on top.
 
 If you **want Snowman (and later disko) to understand and possibly own the disk/boot setup**, you can add a structured `hardware` block:
 
@@ -429,7 +442,7 @@ Rough rule of thumb:
 You don’t have to be perfect for Snowman to work; this setting is mainly for
 disko / re-provisioning workflows and bootloader control.
 
-## 5. Switch the machine to your Snowman config
+## 5. Switch the machine to your Snowman config/body
 
 Once:
 
@@ -438,15 +451,14 @@ Once:
   (created via `snowman-import-hardware`), and
 * your users are wired up,
 
-run from inside your config repo on the installed system:
+run from inside your body repo on the installed system:
 
 ```bash
 sudo nixos-rebuild switch --flake .#my-laptop
 ```
 
 This **replaces** the installer’s “throwaway” configuration with your
-Snowman-driven one. From now on you manage the machine purely by editing your
-config repo and running `nixos-rebuild` with the flake.
+Snowman-driven one (base + body). From now on you manage the machine purely by editing your body repo and running `nixos-rebuild` with the flake.
 
 ---
 
@@ -461,13 +473,13 @@ nix run nixpkgs#nixos-rebuild -- switch \
   --use-remote-sudo
 ```
 
-This updates the remote machine using your personal Snowman configuration.
+This updates the remote machine using your personal Snowman body configuration.
 
 ---
 
 # 🔐 Secrets Management (Sops & Age)
 
-All secret handling happens **inside your personal config repo**.
+All secret handling happens **inside your personal config/body repo**.
 
 Snowman uses:
 
@@ -543,7 +555,7 @@ Snowman maps these to `sops.secrets` entries and writes them as files with the g
 
 ## Inventory: Hosts & Users
 
-Your `inventory.nix` is the heart of Snowman. It does two things:
+Your `inventory.nix` is the heart of your Snowman **body**. It does two things:
 
 * Defines **which hosts** you manage (`hosts = { ... };`)
 * Defines **which users** exist and which hosts they appear on (`users = { ... };`)
@@ -656,7 +668,7 @@ For every user listed in `hosts.<host>.users`, Snowman enforces:
 > Each user must provide at least one login method:
 >
 > * an **SSH key** (`sshPubKeys`, `sshPubKeyFile`, `sshPubKeyFiles`), or
-> * a **password** (`initialPassword` or sops-managed hash via `userPasswordHashKey`).
+> * a **password** (`initialPassword` or `secrets.userPasswordHashKey`).
 
 If neither is configured, evaluation fails with a clear assertion.
 
@@ -710,7 +722,7 @@ users.alice.roles = {
 
   dotfiles = {
     enable    = true;
-    sourceKey = "alice"; # pinned mode
+    sourceKey = "alice"; # pinned mode or git mode
     linkMap = {
       ".config/nvim" = "nvim/.config/nvim";
       ".zshrc"       = "zsh/.zshrc";
@@ -767,7 +779,7 @@ At the top of `inventory.nix` you’ll also see:
 release = "25.05";
 ```
 
-Snowman uses this as both the NixOS `system.stateVersion` and the Home Manager `stateVersion` so you only set it once per inventory.
+Snowman uses this as both the NixOS `system.stateVersion` and the Home Manager `stateVersion` so you only set it once per inventory/body.
 
 ---
 
@@ -899,7 +911,7 @@ That means:
 
 If you intentionally want SSH password logins, you must:
 
-1. Override the SSH settings in your *host config* (not in Snowman engine), e.g.:
+1. Override the SSH settings in your *host config* (not in the Snowman base), e.g.:
 
    ```nix
    services.openssh.settings.PasswordAuthentication = true;
@@ -913,7 +925,7 @@ Snowman will then assert that SSH *allows* passwords **only if** each SSH-enable
 
 ---
 
-# 🧩 Home Roles (dev, ssh, secrets, dotfiles)
+# 🧩 Home Roles (dev, ssh, secrets, dotfiles/head)
 
 Home-manager roles for a user are defined in `inventory.nix` under `users.<name>.roles`.
 
@@ -941,7 +953,7 @@ users.alice = {
 Current roles:
 
 * `roles.dev.enable`
-  Example dev tool role (from your personal config’s `home/roles/dev.nix`).
+  Example dev tool role (from your body repo’s `home/roles/dev.nix`).
 
 * `roles.ssh.enable`
   Ensures a **user-level outbound SSH key** exists at `$HOME/.ssh/id_ed25519`.
@@ -951,7 +963,7 @@ Current roles:
   Includes the `sops` CLI (from `pkgsUnstable`) in the user’s environment.
 
 * `roles.dotfiles.*`
-  Manages your dotfiles either:
+  Mounts your **head repo** (dotfiles) into the user’s home, either:
 
   * via **pinned mode** (flake input mapped through `dotfilesSources`), or
   * via **git mode** (clone/pull at activation time).
@@ -1022,16 +1034,17 @@ Now the machine no longer needs the USB. From this point on, your sops files are
 
 ---
 
-# 🧑‍💻 For Maintainers (Developing Snowman Itself)
+# 🧑‍💻 For Maintainers (Developing the Snowman Base Itself)
 
-If you are **editing Snowman's modules** and want to test those changes with your own personal config:
+If you are **editing Snowman's modules** (this repo, the **base**) and want to test those changes with your own personal body repo:
 
 ## 1. Use two separate repos
 
-* `~/Developer/snowman/` — the engine (this repo)
-* `~/Developer/snowman-config/` — your actual configuration (made from the template)
+* `~/Developer/snowman/` — the **base** (this repo)
+* `~/Developer/snowman-config/` — your actual **body** configuration (made from the template)
+* `~/Developer/dotfiles/` — your **head** (optional, but nicely thematic)
 
-## 2. Temporarily point your config to your local Snowman repo
+## 2. Temporarily point your body repo to your local Snowman base
 
 Inside `snowman-config/flake.nix`:
 
@@ -1039,9 +1052,9 @@ Inside `snowman-config/flake.nix`:
 inputs.snowman.url = "path:../snowman";
 ```
 
-This allows live testing of module changes without pushing to GitHub.
+This allows live testing of base/module changes without pushing to GitHub.
 
-## 3. Deploy from *your* config repo (not from Snowman)
+## 3. Deploy from *your body repo* (not from the base)
 
 ```bash
 cd ~/Developer/snowman-config
@@ -1054,10 +1067,10 @@ nix run nixpkgs#nixos-rebuild -- switch \
 
 ## 4. When satisfied, push updates to GitHub
 
-Then switch your config back to the stable GitHub source:
+Then switch your body repo back to the stable GitHub source:
 
 ```nix
 inputs.snowman.url = "github:DarkBones/snowman";
 ```
 
-This keeps Snowman pure and reusable for everyone.
+This keeps the Snowman **base** pure and reusable for everyone, while your **body** and **head** stay fully yours.
