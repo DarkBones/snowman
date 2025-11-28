@@ -1,5 +1,7 @@
-{ lib, pkgsUnstable, pkgs, dotfilesSources, ... }:
+{ lib, pkgs, pkgsUnstable, dotfilesSources, inv, currentHost, ... }:
 let
+  hasHost = builtins.hasAttr currentHost inv.hosts;
+
   here = ./.;
   entries = builtins.readDir here;
 
@@ -12,9 +14,10 @@ let
 in {
   imports = [ ./hardware ./home/from-inventory.nix ./users ] ++ moduleFiles;
 
-  config = {
+  config = lib.mkIf hasHost {
     home-manager.extraSpecialArgs = { inherit pkgsUnstable dotfilesSources; };
 
-    environment.systemPackages = [ pkgs.git pkgsUnstable.ssh-to-age ];
+    environment.systemPackages = (with pkgs; [ git age ])
+      ++ [ pkgsUnstable.ssh-to-age ];
   };
 }
