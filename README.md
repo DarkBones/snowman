@@ -360,131 +360,7 @@ accidentally lose edits.
 Snowman’s flake wiring will automatically import this file for the host and
 fail with a clear error if it’s missing.
 
-## 4. (Optional, advanced) Add a `hardware` block in `inventory.nix`
-
-For **most users**, you do **not** need a `hardware` block at all:
-
-* Snowman will import your `hosts/<host>-hardware-configuration.nix`.
-* The bootloader and partitioning from the installer will remain as-is.
-* Snowman (base + body) will manage users, secrets, SSH, and home-manager on top.
-
-If you **want Snowman (and later disko) to understand and possibly own the disk/boot setup**, you can add a structured `hardware` block:
-
-```nix
-hosts.my-laptop = {
-  system = "x86_64-linux";
-  users  = [ "alice" ];
-
-  hardware = {
-    boot = { firmware = "efi"; }; # "efi", "bios", or "none"
-    bootDevice = "/dev/sda";      # whole disk, not a partition
-    fs = {
-      type = "ext4";              # or "btrfs", "xfs", ...
-      partition = 1;              # /dev/sda1 → 1
-      # swapGiB = 0;              # optional, for future disko integration
-    };
-  };
-
-  # ... other host settings (secrets, bootstrap.usb, profiles, availableRoles, ...)
-};
-```
-
-Behavior:
-
-* If `hardware` is **omitted**, or `boot.firmware = "none"`, Snowman **does not touch bootloader settings**. Your installer-chosen bootloader stays as-is.
-* If `hardware.boot.firmware = "bios"` or `"efi"`, Snowman configures:
-
-  * GRUB (BIOS) on `bootDevice` (default `/dev/vda` if unset), or
-  * systemd-boot (EFI).
-
-The `hardware` block is primarily used for:
-
-* Future disk provisioning (via disko).
-* Declarative control over bootloader when you opt into that.
-
-### How to find the values Snowman expects (if you use `hardware`)
-
-All the information you need already exists on the installed system.
-
-#### `fs.type` and partition number
-
-1. Open `/etc/nixos/hardware-configuration.nix` and find the root filesystem:
-
-   ```nix
-   fileSystems."/" = {
-     device = "/dev/disk/by-uuid/6a99d998-...";
-     fsType = "ext4";
-   };
-   ```
-
-2. Use `lsblk` or `findmnt` to map that UUID back to a device:
-
-   ```bash
-   lsblk -f
-   # or:
-   findmnt /
-   ```
-
-   You’ll typically see something like `/dev/sda1` or `/dev/vda1` as the
-   backing device for `/`.
-
-3. From that:
-
-   * `fs.type` → the `fsType` value (`"ext4"`, `"btrfs"`, …)
-   * `fs.partition` → the partition number (`/dev/sda1` → `1`, `/dev/nvme0n1p2` → `2`)
-
-#### `bootDevice`
-
-Look in `/etc/nixos/configuration.nix`:
-
-* For GRUB:
-
-```nix
-boot.loader.grub.devices = [ "/dev/sda" ];
-```
-
-  → use `/dev/sda` as `bootDevice`.
-
-* For systemd-boot / EFI, your disk is often something like `/dev/nvme0n1` or `/dev/sda`:
-  again, `lsblk` will show you which disk contains the EFI system partition
-  (usually mounted at `/boot/efi`). Use that whole-disk path as `bootDevice`.
-
-In tricky cases you can always fall back to:
-
-```bash
-lsblk
-lsblk -f
-```
-
-and reason from there.
-
-#### `boot.firmware`
-
-Rough rule of thumb:
-
-* If you have `boot.loader.systemd-boot.enable = true;` or an EFI system
-  partition mounted at `/boot/efi`, set:
-
-  ```nix
-  hardware.boot.firmware = "efi";
-  ```
-
-* If you’re using BIOS GRUB only (no EFI system partition), set:
-
-  ```nix
-  hardware.boot.firmware = "bios";
-  ```
-
-* If you explicitly **do not** want Snowman to touch bootloader settings, set:
-
-  ```nix
-  hardware.boot.firmware = "none";
-  ```
-
-You don’t have to be perfect for Snowman to work; this setting is mainly for
-disko / re-provisioning workflows and bootloader control.
-
-## 5. Switch the machine to your Snowman config/body
+## 4. Switch the machine to your Snowman config/body
 
 Once:
 
@@ -637,8 +513,7 @@ Required per host:
 
 Optional, but useful:
 
-* `hardware` – advanced block used for bootloader control and future disk/provisioning logic
-
+* `hardware` – advanced block used for bootloader control
   * If omitted, Snowman simply uses your imported `hardware-configuration.nix` and does not change bootloader settings.
   * If present with `boot.firmware = "bios"` or `"efi"`, Snowman configures GRUB/systemd-boot based on it.
   * If set to `boot.firmware = "none"`, Snowman explicitly **does not** touch bootloader settings.

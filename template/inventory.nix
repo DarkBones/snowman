@@ -103,21 +103,7 @@
     #   system = "x86_64-linux";
     #   users  = [ "alice" ];
     #
-    #   # Optional advanced hardware inventory. If omitted, Snowman will
-    #   # simply use the imported hardware-configuration.nix and not touch
-    #   # bootloader settings.
-    #   # hardware = {
-    #   #   boot = { firmware = "efi"; };   # "bios" | "efi" | "none"
-    #   #   bootDevice = "/dev/nvme0n1";    # disk, no partition suffix
-    #   #   fs = {
-    #   #     type = "ext4";                # e.g. "ext4", "btrfs"
-    #   #     partition = 1;                # /dev/nvme0n1p1 → 1
-    #   #     # swapGiB = 8;                # optional swap on same disk
-    #   #   };
-    #   # };
-    #
     #   # availableRoles = [ "dev" "secrets" "ssh" "my_company" ];
-    #   # provision.disk.enable = true;
     # };
   };
 
