@@ -130,12 +130,22 @@
       ########################################################
       ## Login method (required by Snowman)
       ##
-      ## We can create a simple temporary password in plain text
+      ## For the template we keep a simple temporary password
+      ## so the config works out-of-the-box. Replace this with
+      ## something real, or move to sops-based password hashes.
       ########################################################
       initialPassword = "changeme";
 
-      # QUESTION: Why do we need sshPubKeys? What does it do? Who'se key do you add?
-      # Replace with your real SSH public key(s) if you want SSH:
+      ########################################################
+      ## SSH public keys for logging in as this user
+      ##
+      ## These keys are written to ~/.ssh/authorized_keys for
+      ## `bas` on every host that lists `bas` in hosts.<host>.users.
+      ##
+      ## You normally put the public keys of the machines you
+      ## SSH *from* here (laptop, work PC, YubiKey-backed key…),
+      ## not the host’s own key.
+      ########################################################
       # sshPubKeys = [ "ssh-ed25519 AAAA... REPLACE_ME_WITH_YOUR_PUBLIC_KEY" ];
       #
       # Alternative file-based styles:
@@ -144,11 +154,21 @@
 
       ########################################################
       ## Optional per-user secrets (via sops-nix)
+      ##
+      ## Use this when you want the user's password hash and
+      ## other secrets (tokens, API keys) managed by sops.
+      ##
+      ## - `keys` declares which YAML keys become secrets.
+      ## - `userPasswordHashKey` says which one is the password
+      ##   hash for this user (used as hashedPasswordFile).
+      ##
+      ## This is the "real" long-term version of login, as
+      ## opposed to the simple `initialPassword` above.
       ########################################################
       # secrets = {
       #   sopsFile = ./users/secrets/bas_secrets.yml;
       #   keys = [ "password_hash" "github_token" ];
-      #   userPasswordHashKey = "password_hash"; # QUESTION: Is this sufficiently coverd in the documentation? It feels a bit disjointed from initialPassword, but that's okay as long as its documented (I do believe we have an assert also)
+      #   userPasswordHashKey = "password_hash";
       # };
 
       ########################################################
@@ -164,10 +184,20 @@
         dev.enable = true;
 
         # Defaults to `true` if omitted
-        # ssh.enable = true; 
+        # ssh.enable = true;
 
-        # Include sops CLI in the user environment
-        secrets.enable = true; # QUESTION: Remind me why we have a `user.secrets` section and a `user.roles.secrets` role
+        ####################################################
+        ## "secrets" role: user environment
+        ##
+        ## This is separate from `users.bas.secrets` above:
+        ##
+        ## - `users.bas.secrets`  → what secrets exist, how
+        ##   they are stored (sops-nix, password hash, files).
+        ##
+        ## - roles.secrets.enable → whether this user should
+        ##   have the sops CLI & helpers in their $PATH.
+        ####################################################
+        secrets.enable = true;
 
         ########################################################
         ## Dotfiles ("head") role
@@ -198,14 +228,22 @@
           ##     url = "github:DarkBones/dotfiles";
           ##     flake = false;
           ##   };
+          ##
+          ## When active, Snowman will try to resolve:
+          ##   - `sourceKey` if set
+          ##   - otherwise `home.username`
+          ## in `dotfilesSources`. If that lookup succeeds,
+          ## pinned mode is used.
           ####################################################
           # sourceKey = "bas"; # defaults to home.username if omitted
 
           ####################################################
           ## GIT MODE (NON-REPRODUCIBLE, but easy to start with)
           ##
-          ## Only used when `sourceKey` is unset or doesn't
-          ## resolve in dotfilesSources. # QUESTION: This is confusing. It mentions something happening when `sourceKey` is unset, but above it mentions that defaults to `home.username`
+          ## Used when no usable pinned source can be found:
+          ## - `sourceKey` is unset AND no dotfilesSources[home.username]
+          ##   entry exists, OR
+          ## - `sourceKey` is set but doesn't resolve in dotfilesSources.
           ##
           ## By default this template config will pull *your*
           ## dotfiles repo as a demo.
