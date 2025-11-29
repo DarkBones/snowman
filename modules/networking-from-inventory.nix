@@ -9,9 +9,17 @@ let
 
   networksCfg = inv.networks or { };
 
-  # Networks that declare a passwordSecret
+  # All networks that declare a passwordSecret (global)
   networksWithPassword =
     lib.filterAttrs (_: net: net ? passwordSecret) networksCfg;
+
+  # Networks this host wants to use
+  wifiNetworks = if wifi != null then wifi.networks or [ ] else [ ];
+
+  # Subset of networksWithPassword that are referenced by this host
+  wifiNetworksWithPassword =
+    lib.filterAttrs (netName: _: lib.elem netName wifiNetworks)
+    networksWithPassword;
 
   mkWirelessNetworks = wifiCfg:
     let netNames = wifiCfg.networks or [ ];
@@ -19,12 +27,8 @@ let
       let
         net = networksCfg.${netName};
         ssid = net.ssid;
-      in acc // {
-        "${ssid}" = {
-          # wpa_supplicant will look up this symbol in wireless.conf
-          pskRaw = "ext:psk_${netName}";
-        };
-      }) { } netNames;
+      in acc // { "${ssid}" = { pskRaw = "ext:psk_${netName}"; }; }) { }
+    netNames;
 
 in {
   config = lib.mkMerge [
@@ -34,7 +38,7 @@ in {
 
       networking.networkmanager.enable = false;
       networking.wireless.enable = true;
-      networking.wireless.interfaces = [ wifi.interface or "wlan0" ];
+      networking.wireless.interfaces = [ wifiInterface ];
 
       networking.wireless.networks = mkWirelessNetworks wifi;
     })
@@ -47,7 +51,8 @@ in {
     })
 
     # --- Generate /run/secrets/wireless.conf for ext:psk_<net> ---------------
-    (lib.mkIf (hasHost && wifi != null && networksWithPassword != { }) {
+    # Only for networks this host actually uses AND that have passwordSecret.
+    (lib.mkIf (hasHost && wifi != null && wifiNetworksWithPassword != { }) {
       networking.wireless.secretsFile = "/run/secrets/wireless.conf";
 
       system.activationScripts."snowman-wireless-secrets" = ''
@@ -72,7 +77,7 @@ in {
             else
               echo "[snowman] WARNING: Secret file ${secretPath} for network ${netName} is missing or unreadable." >&2
             fi
-          '') networksWithPassword)}
+          '') wifiNetworksWithPassword)}
 
         chown root:root "$outfile"
         chmod 0400 "$outfile"
