@@ -1,5 +1,3 @@
-# modules/bootstrap-usb.nix
-
 { lib, inv, currentHost, sopsConfigPath, ... }:
 let
   hasHost = builtins.hasAttr currentHost inv.hosts;
@@ -23,7 +21,7 @@ in {
     type = lib.types.bool;
     default = isRotated;
     internal = true;
-    description = "True if the host key is present in .sops.yaml";
+    description = "True if the host key is present in .sops.yaml"; # TODO: Update message
   };
 
   config = lib.mkIf (hasHost && usbEffective) {

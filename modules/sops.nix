@@ -110,11 +110,6 @@ in {
     system.activationScripts."00-snowman-import-sops-key" = lib.mkIf usbMode ''
       set -euo pipefail
 
-      if (systemd-detect-virt > /dev/null); then
-         echo "[snowman] In a VM, skipping USB key import."
-         exit 0
-      fi
-
       TARGET="/var/lib/sops-nix/age.key"
       USB_MOUNT="${usbCfg.path}"
       USB_LABEL="${usbCfg.label}"
@@ -151,7 +146,9 @@ in {
 
       echo "[snowman] Copying key to $TARGET"
       install -d -m 0700 /var/lib/sops-nix
-      install -m 0400 -o root -g root "$USB_MOUNT/$USB_KEY_FILE" "$TARGET"
+      # NOTE: no -o / -g; we're already root, and BusyBox install in the
+      # installer env doesn't support owner/group by name.
+      install -m 0400 "$USB_MOUNT/$USB_KEY_FILE" "$TARGET"
 
       if [ "$mounted_here" = 1 ]; then
         umount "$USB_MOUNT" || true
