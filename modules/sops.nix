@@ -1,4 +1,4 @@
-{ lib, sops-nix, config, inv, currentHost, ... }:
+{ lib, sops-nix, config, inv, currentHost, networkSecretsPath ? null, ... }:
 let
   hasHost = builtins.hasAttr currentHost inv.hosts;
   host = if hasHost then inv.hosts.${currentHost} else { };
@@ -44,8 +44,30 @@ let
   perUserSecrets = lib.foldl' (acc: name: acc // mkSecretsForUser name) { }
     (builtins.attrNames usersWithSecrets);
 
+  networksCfg = inv.networks or { };
+
+  # Derive wifi-* secrets from inventory.networks + networks/secrets.yml
+  mkNetworkSecrets = let netNames = builtins.attrNames networksCfg;
+  in lib.foldl' (acc: netName:
+    let
+      net = networksCfg.${netName};
+      passwordKey = net.passwordSecret or null;
+    in acc
+    // (lib.optionalAttrs (networkSecretsPath != null && passwordKey != null) {
+      "wifi-${netName}-password" = {
+        sopsFile = networkSecretsPath;
+        format = "yaml";
+        key = passwordKey;
+        owner = "root";
+        group = "root";
+        mode = "0400";
+      };
+    })) { } netNames;
+
+  networkSecrets = mkNetworkSecrets;
+
   hostSecrets = config.snowman.hostSecrets or { };
-  allSecrets = hostSecrets // perUserSecrets;
+  allSecrets = hostSecrets // perUserSecrets // networkSecrets;
 
   sopsPasswordKeyAssertions = lib.mapAttrsToList (name: u: {
     assertion = !(u ? secrets.userPasswordHashKey)

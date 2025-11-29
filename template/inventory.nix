@@ -2,11 +2,29 @@
   # Used as system.stateVersion + HM stateVersion
   release = "25.05";
 
+  networks = {
+    home = {
+      ssid = "home_ssid";
+      passwordSecret = "home.password"; # key in networks/secrets.yml
+    };
+    work = {
+      ssid = "work_ssid";
+      passwordSecret = "work.password"; # key in networks/secrets.yml
+    };
+  };
+
   hosts = {
     vm-snowman = {
       system = "x86_64-linux";
       mutableUsers = true;
       hostname = "vm-snowman";
+
+      wifi = {
+        mode = "static-wifi";
+        interface = "wlan0"; # Optional, defaults to "wlan0" if omitted
+        useDHCP = true; # Optional, defaults to `true` if omitted
+        networks = [ "home" ];
+      };
 
       ############################################################
       ## Optional hardware description used by Snowman
