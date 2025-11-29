@@ -77,6 +77,12 @@ let
       }' not found in secrets.keys (${toString (u.secrets.keys or [ ])}).";
   }) inv.users;
 
+  networkPasswordAssertions = lib.mapAttrsToList (netName: net: {
+    assertion = !(net ? passwordSecret) || networkSecretsPath != null;
+    message =
+      "Network ${netName}: passwordSecret is set but networkSecretsPath is null.";
+  }) networksCfg;
+
 in {
   imports = [ sops-nix.nixosModules.sops ];
 
@@ -150,6 +156,6 @@ in {
       echo "[snowman] SOPS age key imported successfully."
     '';
 
-    assertions = sopsPasswordKeyAssertions;
+    assertions = sopsPasswordKeyAssertions ++ networkPasswordAssertions;
   };
 }

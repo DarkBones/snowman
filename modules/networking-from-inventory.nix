@@ -48,7 +48,7 @@ in {
         }
         {
           assertion = !(hasHost && wifi != null && wifi.mode == "static-wifi")
-            || lib.all (netName: networksCfg ? ${netName})
+            || lib.all (netName: builtins.hasAttr netName networksCfg)
             (wifi.networks or [ ]);
           message =
             "Host ${currentHost}: wifi.networks references undefined entries in inventory.networks.";

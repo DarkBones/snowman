@@ -59,10 +59,6 @@
       # Reserved for future disko integration (uses `hardware.*` above)
       provision.disk.enable = false;
 
-      # Networking: Snowman maps this to `networking.useDHCP` internally.
-      # If omitted, DHCP defaults to true.
-      # useDHCP = true;
-
       # Optional per-host secrets (via sops-nix)
       # secrets = {
       #   sopsFile = ./hosts/secrets/vm-snowman_secrets.yml;
