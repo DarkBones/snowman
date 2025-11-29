@@ -2,92 +2,103 @@
   # Used as system.stateVersion + HM stateVersion
   release = "25.05";
 
-  networks = {
-    home = {
-      ssid = "home_ssid";
-      passwordSecret = "home/password"; # key in networks/secrets.yml
-    };
-    work = {
-      ssid = "work_ssid";
-      passwordSecret = "work/password"; # key in networks/secrets.yml
-    };
-  };
+  ############################################################
+  ## Optional: declarative Wi-Fi networks
+  ##
+  ## If you don't need inventory-driven Wi-Fi yet, leave
+  ## this commented out and just use NetworkManager + nmtui.
+  ##
+  ## Secrets for these networks live in networks/secrets.yml.
+  ############################################################
+  # networks = {
+  #   home = {
+  #     ssid = "home_ssid";
+  #     # YAML path in networks/secrets.yml:
+  #     passwordSecret = "home/password";
+  #   };
+  #   work = {
+  #     ssid = "work_ssid";
+  #     passwordSecret = "work/password";
+  #   };
+  # };
 
   hosts = {
     vm-snowman = {
       system = "x86_64-linux";
+      users  = [ "bas" ];
+
+      # If omitted, defaults to true (you can still change passwords via `passwd`)
       mutableUsers = true;
+
+      # Optional: override runtime hostname (defaults to the attr name: "vm-snowman")
       hostname = "vm-snowman";
 
-      wifi = {
-        mode = "static-wifi";
-        # interface = "wlan0"; # Optional, defaults to "wlan0" if omitted
-        # useDHCP = true; # Optional, defaults to `true` if omitted
-        networks = [ "home" ];
-      };
+      ########################################################
+      ## Optional Wi-Fi configuration
+      ##
+      ## If you leave `wifi` unset, Snowman does NOT touch
+      ## networking: NetworkManager / nmtui keep working.
+      ########################################################
+
+      # Recommended default for laptops / interactive machines:
+      # wifi = {
+      #   mode = "roaming";  # let NetworkManager handle Wi-Fi
+      # };
+
+      # Declarative/headless Wi-Fi (e.g. Pi/servers with no screen):
+      # wifi = {
+      #   mode = "static-wifi";
+      #   # interface = "wlan0";  # defaults to "wlan0" if omitted
+      #   # useDHCP  = true;      # defaults to true if omitted
+      #   networks  = [ "home" ]; # names from the top-level `networks` attr
+      # };
 
       ############################################################
-      ## Optional hardware description used by Snowman
+      ## Optional per-host secrets (via sops-nix)
       ##
-      ## For most users you can leave this as-is or even remove it.
-      ## If `hardware` is omitted, Snowman:
-      ##   - imports your per-host hardware-configuration.nix, and
-      ##   - does NOT touch bootloader settings (installer config stays).
-      ##
-      ## If you want Snowman (and later disko) to understand / own
-      ## your disk + bootloader, fill this in correctly.
+      ## You can define host-specific secrets here, e.g. VPN keys.
       ############################################################
-      # hardware = {
-      #   # Is this machine booting in "bios", "efi", or "none" mode?
-      #   #
-      #   #  - "bios" → Snowman configures GRUB on `bootDevice`.
-      #   #  - "efi"  → Snowman configures systemd-boot.
-      #   #  - "none" → Snowman does not touch bootloader settings.
-      #   boot = { firmware = "bios"; }; # "bios" | "efi" | "none"
-      #
-      #   # The *disk* that contains your root partition (no partition number)
-      #   bootDevice = "/dev/vda"; # e.g. /dev/sda, /dev/vda, /dev/nvme0n1
-      #
-      #   # Filesystem info for the root partition
-      #   fs = {
-      #     type = "ext4"; # e.g. "ext4", "btrfs"
-      #     partition = 1; # e.g. /dev/vda1 → 1
-      #     # swapGiB = 0;                # optional: swap size in GiB if you let Snowman/disko create it
+      # secrets = {
+      #   sopsFile = ./hosts/secrets/vm-snowman_secrets.yml;
+      #   items = {
+      #     # Example:
+      #     # wireguard-private-key = {
+      #     #   key   = "wireguard-private-key"; # YAML key
+      #     #   owner = "root";
+      #     #   group = "root";
+      #     #   mode  = "0400";
+      #     # };
       #   };
       # };
 
-      # Reserved for future disko integration (uses `hardware.*` above)
-      provision.disk.enable = false;
-
-      # Optional per-host secrets (via sops-nix)
-      # secrets = {
-      #   sopsFile = ./hosts/secrets/vm-snowman_secrets.yml;
-      #   items = { };
-      # };
-
-      # Optional per-host role filter:
-      #
-      # If omitted, all roles with `users.<name>.roles.<role>.enable = true`
-      # are applied on this host.
-      #
-      # If set, only roles whose *names* appear in this list are applied.
-      # This lets you reuse the same user across multiple machines, but
-      # avoid running e.g. a `gaming` role on a work laptop or server.
-      #
+      ############################################################
+      ## Optional per-host role filter
+      ##
+      ## If omitted, all roles with users.<name>.roles.<role>.enable
+      ## set to true are applied on this host.
+      ##
+      ## If set, only roles whose *names* appear in this list are
+      ## applied. This lets you reuse one user across many hosts
+      ## but restrict e.g. gaming roles to a single machine.
+      ############################################################
       # availableRoles = [ "bas" "ssh" "dev" "secrets" ];
 
-      users = [ "bas" ];
-
+      ############################################################
+      ## Optional: USB bootstrap Age key ("Snowman Key")
+      ##
+      ## Lets a brand new machine decrypt secrets from a USB stick
+      ## before its own Age key is enrolled.
+      ############################################################
       bootstrap.usb = {
         enable = false;
-        label = "SNOWMANKEY";
-        path = "/mnt/snowman";
+        label  = "SNOWMANKEY";
+        path   = "/mnt/snowman";
         keyFile = "snowman.key";
-        fsType = "vfat";
+        fsType  = "vfat";
       };
     };
 
-    # Example:
+    # Example for a second host:
     # work-laptop = {
     #   system = "x86_64-linux";
     #   users  = [ "alice" ];
@@ -95,111 +106,133 @@
     #   # Optional advanced hardware inventory. If omitted, Snowman will
     #   # simply use the imported hardware-configuration.nix and not touch
     #   # bootloader settings.
-    #   hardware = {
-    #     boot = { firmware = "efi"; };   # "bios" | "efi" | "none"
-    #     bootDevice = "/dev/nvme0n1";    # disk, no partition suffix
-    #     fs = {
-    #       type = "ext4";                # e.g. "ext4", "btrfs"
-    #       partition = 1;                # /dev/nvme0n1p1 → 1
-    #       # swapGiB = 8;                # optional swap on same disk
-    #     };
-    #   };
+    #   # hardware = {
+    #   #   boot = { firmware = "efi"; };   # "bios" | "efi" | "none"
+    #   #   bootDevice = "/dev/nvme0n1";    # disk, no partition suffix
+    #   #   fs = {
+    #   #     type = "ext4";                # e.g. "ext4", "btrfs"
+    #   #     partition = 1;                # /dev/nvme0n1p1 → 1
+    #   #     # swapGiB = 8;                # optional swap on same disk
+    #   #   };
+    #   # };
     #
-    #   # Only allow a subset of roles on this host. For example,
-    #   # skip a hypothetical `gaming` role here:
-    #   #
     #   # availableRoles = [ "dev" "secrets" "ssh" "my_company" ];
-    #
-    #   # provision.disk.enable = true;   # when you want Snowman+disko to own the disk
+    #   # provision.disk.enable = true;
     # };
   };
 
   users = {
     bas = {
-      uid = 1000;
+      uid    = 1000;
       groups = [ "wheel" ];
-      shell = "zsh";
+      shell  = "zsh";
 
-      # Replace with your real SSH public key(s)
+      ########################################################
+      ## Login method (required by Snowman)
+      ##
+      ## We can create a simple temporary password in plain text
+      ########################################################
+      initialPassword = "changeme";
+
+      # QUESTION: Why do we need sshPubKeys? What does it do? Who'se key do you add?
+      # Replace with your real SSH public key(s) if you want SSH:
       # sshPubKeys = [ "ssh-ed25519 AAAA... REPLACE_ME_WITH_YOUR_PUBLIC_KEY" ];
-
+      #
       # Alternative file-based styles:
       # sshPubKeyFile  = ./users/keys/bas.pub;
       # sshPubKeyFiles = [ ./users/keys/bas-laptop.pub ./users/keys/bas-pc.pub ];
 
-      # Optional per-user secrets (via sops-nix)
+      ########################################################
+      ## Optional per-user secrets (via sops-nix)
+      ########################################################
       # secrets = {
       #   sopsFile = ./users/secrets/bas_secrets.yml;
       #   keys = [ "password_hash" "github_token" ];
-      #   userPasswordHashKey = "password_hash";
+      #   userPasswordHashKey = "password_hash"; # QUESTION: Is this sufficiently coverd in the documentation? It feels a bit disjointed from initialPassword, but that's okay as long as its documented (I do believe we have an assert also)
       # };
 
-      # Simple alternative for first install (not recommended long-term):
-      initialPassword = "snowman";
-
-      # Optional extra Home Manager config:
+      ########################################################
+      ## Optional extra Home Manager config for this user
+      ########################################################
       # envFile = ./users/env/bas.nix;
 
       roles = {
+        # Example of your own reusable Home Manager role
         bas.enable = true;
+
+        # Example dev tool role (see home/roles/dev.nix)
         dev.enable = true;
-        # ssh.enable = true;    # defaults to true if omitted
-        secrets.enable = true;
 
-        # You can define more roles here, e.g.:
-        # gaming.enable = true; # installs Steam, GPU drivers, etc.
-        #
-        # Then use `hosts.<host>.availableRoles` to choose which hosts
-        # actually apply that role (e.g. gaming PC vs. work laptop).
+        # Defaults to `true` if omitted
+        # ssh.enable = true; 
 
+        # Include sops CLI in the user environment
+        secrets.enable = true; # QUESTION: Remind me why we have a `user.secrets` section and a `user.roles.secrets` role
+
+        ########################################################
+        ## Dotfiles ("head") role
+        ##
+        ## This role mounts your dotfiles repo into $HOME.
+        ## Two modes:
+        ##   - Pinned mode: through flake inputs (reproducible)
+        ##   - Git mode: clone/pull on activation (non-reproducible)
+        ##
+        ## The template enables Git mode by default as a demo.
+        ########################################################
         dotfiles = {
           enable = true;
 
-          ############################################################
-          ## MODE SELECTION
+          ####################################################
+          ## PINNED MODE (reproducible; uses flake input)
           ##
-          ## If `sourceKey` resolves in dotfilesSources (specialArgs),
-          ## we use *pinned mode* (flake input in the Nix store).
+          ## Requires your body flake to define dotfilesSources,
+          ## e.g.:
           ##
-          ## If `sourceKey` is null or doesn't resolve, we fall back
-          ## to *git mode* (clone/pull at activation time).
-          ############################################################
+          ##   dotfilesSources = {
+          ##     bas = inputs.bas-dotfiles;
+          ##   };
+          ##
+          ## and a flake input:
+          ##
+          ##   bas-dotfiles = {
+          ##     url = "github:DarkBones/dotfiles";
+          ##     flake = false;
+          ##   };
+          ####################################################
+          # sourceKey = "bas"; # defaults to home.username if omitted
 
-          # PINNED MODE (reproducible; uses flake input)
-          # default = "username" # Defaults to `home.username` if omitted
-          # sourceKey = "bas";
-
-          # GIT MODE (NON-REPRODUCIBLE)
-          # Only used when pinned mode is NOT active.
-          # repo = "git@github.com:DarkBones/.dotfiles.git";
-          # dir = "Developer/dotfiles";
-          # branch = "main";
-          # sparse = [ "nvim" "zsh" ];
-
-          ############################################################
-          ## SHARED SETTINGS (BOTH MODES)
-          ############################################################
-          repo = "https://github.com/DarkBones/dotfiles.git";
-          dir = "Developer/dotfiles";
+          ####################################################
+          ## GIT MODE (NON-REPRODUCIBLE, but easy to start with)
+          ##
+          ## Only used when `sourceKey` is unset or doesn't
+          ## resolve in dotfilesSources. # QUESTION: This is confusing. It mentions something happening when `sourceKey` is unset, but above it mentions that defaults to `home.username`
+          ##
+          ## By default this template config will pull *your*
+          ## dotfiles repo as a demo.
+          ####################################################
+          repo   = "https://github.com/DarkBones/dotfiles.git";
+          dir    = "Developer/dotfiles";
           branch = "main";
           sparse = [ "nvim" "zsh" ];
 
-          ############################################################
-          ## SHARED SETTINGS (BOTH MODES)
-          ############################################################
+          ####################################################
+          ## Shared settings for both modes:
+          ## map $HOME/<target> → <path inside repo>
+          ####################################################
           linkMap = {
             ".config/nvim" = "nvim/.config/nvim";
-            ".zsh" = "zsh/.zsh";
-            ".zshrc" = "zsh/.zshrc";
+            ".zsh"         = "zsh/.zsh";
+            ".zshrc"       = "zsh/.zshrc";
           };
         };
       };
     };
 
+    # Example of a second user:
     # alice = {
-    #   uid = 1001;
+    #   uid    = 1001;
     #   groups = [ "wheel" ];
-    #   shell = "bash";
+    #   shell  = "bash";
     #   sshPubKeyFiles = [ ./users/keys/alice.pub ];
     #
     #   roles = {
