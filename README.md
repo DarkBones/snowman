@@ -262,6 +262,13 @@ On the target machine:
    * choose a bootloader (GRUB / systemd-boot),
    * create an initial user account (e.g. `bas`),
    * finish the installation.
+   * **(Recommended for laptops / Wi-Fi machines)**  
+     In the generated `/etc/nixos/configuration.nix`, make sure you have:
+     ```nix
+     networking.networkmanager.enable = true;
+     ```
+     This gives you `nmtui` after the first reboot so you can connect to Wi-Fi
+     **before** switching the machine to Snowman.
 
 The installer will write its own `/etc/nixos/configuration.nix` and
 `/etc/nixos/hardware-configuration.nix`. Think of these as **temporary**:
@@ -269,6 +276,41 @@ your Snowman **body repo**, powered by the base, will replace them.
 
 3. Reboot into the freshly installed system.
 4. Log in as the user you created during installation.
+
+### 💡 Wi-Fi & networking workflow
+
+Snowman **does not touch networking** unless you explicitly ask it to via
+`hosts.<name>.wifi` in `inventory.nix`.
+
+That means:
+
+- If you **don’t** define a `wifi` block for a host, Snowman leaves your
+  existing NetworkManager / `nmtui` setup alone.
+- You can always install NixOS, reboot, connect to Wi-Fi using `nmtui`, and
+  *then* pull your Snowman config.
+
+A very typical flow for a laptop or Raspberry Pi with a screen:
+
+1. Install NixOS normally and ensure:
+   ```nix
+   networking.networkmanager.enable = true;
+   ```
+
+2. Reboot into the installed system.
+3. Log in as the user you created during install.
+4. Run:
+
+   ```bash
+   nmtui
+   ```
+
+   and connect to Wi-Fi like on any other distro.
+5. Clone your Snowman body repo and continue with `./bin/snowman-import-hardware`
+   and `sudo nixos-rebuild --flake ...`.
+
+This works even if you never configure Wi-Fi in `inventory.nix`.
+Inventory-driven Wi-Fi is **optional** and mainly intended for headless or
+fully declarative setups.
 
 ## 2. Clone your Snowman config/body repo on the installed system
 
@@ -397,9 +439,9 @@ Look in `/etc/nixos/configuration.nix`:
 
 * For GRUB:
 
-  ```nix
-  boot.loader.grub.devices = [ "/dev/sda" ];
-  ```
+```nix
+boot.loader.grub.devices = [ "/dev/sda" ];
+```
 
   → use `/dev/sda` as `bootDevice`.
 
@@ -624,6 +666,72 @@ hosts.my-laptop.secrets = {
 ```
 
 Snowman converts `items` into `sops.secrets` entries and writes them as files with the given owner/group/mode.
+
+#### Optional: Wi-Fi configuration in `inventory.nix`
+
+For most machines, you can let NetworkManager handle Wi-Fi and never mention it
+in `inventory.nix`. If `hosts.<name>.wifi` is **absent**, Snowman does **nothing**
+to your networking – whatever you set up during install (e.g. via `nmtui`) stays.
+
+If you want **declarative Wi-Fi**, especially for headless hosts, you can add a
+`wifi` block to a host and (optionally) a `networks` block at the top level of
+the inventory:
+
+```nix
+{
+  # Used as system.stateVersion + HM stateVersion
+  release = "25.05";
+
+  ########################################################
+  ## Optional: named Wi-Fi networks
+  ## Secrets live in networks/secrets.yml (see template).
+  ########################################################
+  networks = {
+    home = {
+      ssid = "my-home-ssid";
+      # YAML path inside networks/secrets.yml:
+      passwordSecret = "home/password";
+    };
+    work = {
+      ssid = "corp-wifi";
+      passwordSecret = "work/password";
+    };
+  };
+
+  hosts = {
+    rpi4 = {
+      system = "aarch64-linux";
+      users  = [ "bas" ];
+
+      ####################################################
+      ## Wi-Fi (optional)
+      ##
+      ## If this block is omitted, Snowman leaves
+      ## networking alone (NetworkManager / nmtui, etc.).
+      ####################################################
+
+      # Roaming mode: let NetworkManager handle Wi-Fi.
+      # Use this for laptops / interactive machines.
+      # wifi = {
+      #   mode = "roaming";   # or simply omit `wifi` entirely
+      # };
+
+      # Static/headless Wi-Fi: wpa_supplicant + sops-managed PSKs.
+      # Useful for Pis / servers with no screen.
+      wifi = {
+        mode = "static-wifi";
+        interface = "wlan0";  # default if omitted
+        useDHCP = true;       # default if omitted
+        networks = [ "home" ];  # names from the top-level `networks` attr
+      };
+
+      # ...
+    };
+  };
+
+  users = { ... };
+}
+```
 
 #### Hardware configuration files (per host)
 
