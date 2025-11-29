@@ -21,8 +21,8 @@
 
       wifi = {
         mode = "static-wifi";
-        interface = "wlan0"; # Optional, defaults to "wlan0" if omitted
-        useDHCP = true; # Optional, defaults to `true` if omitted
+        # interface = "wlan0"; # Optional, defaults to "wlan0" if omitted
+        # useDHCP = true; # Optional, defaults to `true` if omitted
         networks = [ "home" ];
       };
 
