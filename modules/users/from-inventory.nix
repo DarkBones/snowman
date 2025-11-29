@@ -134,6 +134,26 @@ in {
               '';
             }
           ];
+
+          # Expose some meta info for debugging
+          options.snowman.meta = {
+            host = lib.mkOption {
+              type = lib.types.str;
+              default = currentHost;
+              description = "Inventory host name this system was built for.";
+            };
+
+            users = lib.mkOption {
+              type = lib.types.listOf lib.types.str;
+              default = builtins.attrNames users;
+              description = "Users Snowman believes should exist on this host.";
+            };
+          };
+
+          config.snowman.meta = {
+            host = currentHost;
+            users = builtins.attrNames users;
+          };
         }
       ]) users))
 
@@ -154,6 +174,15 @@ in {
           assertion = builtins.length hostUsers > 0;
           message =
             "Inventory: `${currentHost}.users` must be a non-empty list";
+        }
+        {
+          assertion = builtins.length (builtins.attrNames users) > 0;
+          message = ''
+            Snowman: resolved no users for host "${currentHost}".
+            Check:
+              - inv.hosts.${currentHost}.users
+              - inv.users
+          '';
         }
         {
           assertion = lib.all (name:
@@ -178,5 +207,6 @@ in {
         }
       ];
     }
+
   ]);
 }
