@@ -27,7 +27,7 @@
       system = "x86_64-linux";
       users  = [ "bas" ];
 
-      # If omitted, defaults to true (you can still change passwords via `passwd`)
+      # If omitted, defaults to false
       mutableUsers = true;
 
       # Optional: override runtime hostname (defaults to the attr name: "vm-snowman")
