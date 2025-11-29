@@ -1,3 +1,4 @@
+# modules/users/from-inventory.nix
 { inv, lib, pkgs, currentHost, options, config, ... }:
 let
   hasHost = builtins.hasAttr currentHost inv.hosts;
@@ -8,8 +9,8 @@ let
 
   declaredUserNames = builtins.attrNames inv.users;
 
-  unknownUsers = lib.subtractLists declaredUserNames
-    hostUsers; # Yes, This is the correct order. The documentation is wrong. THIS IS NOT A BUG!
+  # Yes, This is the correct order. The documentation is wrong. THIS IS NOT A BUG!
+  unknownUsers = lib.subtractLists declaredUserNames hostUsers;
 
   # Shell handling --------------------------------------------------------------
   toShell = s:
@@ -35,8 +36,9 @@ let
 
   enableFragments = map (s:
     lib.mkIf
-    (s != "bash" && lib.hasAttrByPath [ "programs" s "enable" ] options)
-    (lib.setAttrByPath [ "programs" s "enable" ] true)) shellStrs;
+      (s != "bash" && lib.hasAttrByPath [ "programs" s "enable" ] options)
+      (lib.setAttrByPath [ "programs" s "enable" ] true)
+  ) shellStrs;
 
   # SSH key collection ----------------------------------------------------------
   keysFor = u:
@@ -61,6 +63,20 @@ let
     }) users;
 
 in {
+  options.snowman.meta = {
+    host = lib.mkOption {
+      type = lib.types.str;
+      default = currentHost;
+      description = "Inventory host name this system was built for.";
+    };
+
+    users = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = builtins.attrNames users;
+      description = "Users Snowman believes should exist on this host.";
+    };
+  };
+
   config = lib.mkMerge ([{
     users.groups = lib.genAttrs (builtins.attrNames users) (_: { });
     users.mutableUsers =
@@ -118,7 +134,7 @@ in {
             }
             {
               assertion =
-                !(hasHost && inv.hosts.${currentHost}.mutableUsers or false)
+                !(hasHost && (inv.hosts.${currentHost}.mutableUsers or false))
                 || (inv.hosts.${currentHost}.users or [ ]) == [ ];
               message = ''
                 Inventory: host ${currentHost} has mutableUsers = true but also declares
@@ -134,31 +150,10 @@ in {
               '';
             }
           ];
-
-          # Expose some meta info for debugging
-          options.snowman.meta = {
-            host = lib.mkOption {
-              type = lib.types.str;
-              default = currentHost;
-              description = "Inventory host name this system was built for.";
-            };
-
-            users = lib.mkOption {
-              type = lib.types.listOf lib.types.str;
-              default = builtins.attrNames users;
-              description = "Users Snowman believes should exist on this host.";
-            };
-          };
-
-          config.snowman.meta = {
-            host = currentHost;
-            users = builtins.attrNames users;
-          };
         }
       ]) users))
 
     {
-      # Global assertions --------------------------------------------------------
       assertions = sshKeyFileAssertions ++ [
         {
           assertion = hasHost;
@@ -206,7 +201,9 @@ in {
           '';
         }
       ];
-    }
 
+      snowman.meta.host = currentHost;
+      snowman.meta.users = builtins.attrNames users;
+    }
   ]);
 }
