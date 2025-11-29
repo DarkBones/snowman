@@ -4,6 +4,9 @@ let
   host = if hasHost then inv.hosts.${currentHost} else { };
   wifi = host.wifi or null;
 
+  wifiInterface =
+    if wifi != null && wifi ? interface then wifi.interface else "wlan0";
+
   networksCfg = inv.networks or { };
 
   # Networks that declare a passwordSecret
@@ -76,6 +79,16 @@ in {
 
         echo "[snowman] Created /run/secrets/wireless.conf"
       '';
+    })
+
+    # --- Wi-Fi aware firewall defaults ---------------------------------------
+    (lib.mkIf (hasHost && wifi != null && wifi.mode == "static-wifi") {
+      networking.firewall = {
+        enable = lib.mkDefault true;
+        trustedInterfaces = lib.mkDefault [ wifiInterface ];
+        checkReversePath = lib.mkDefault "loose";
+        allowPing = lib.mkDefault true;
+      };
     })
 
     {
