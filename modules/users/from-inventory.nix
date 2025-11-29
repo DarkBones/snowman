@@ -116,6 +116,23 @@ in {
               message =
                 "SSH allows passwords but ${name} has neither SOPS password nor initialPassword. Configure one.";
             }
+            {
+              assertion =
+                !(hasHost && inv.hosts.${currentHost}.mutableUsers or false)
+                || (inv.hosts.${currentHost}.users or [ ]) == [ ];
+              message = ''
+                Inventory: host ${currentHost} has mutableUsers = true but also declares
+                users in hosts.${currentHost}.users.
+
+                With users.mutableUsers = true, NixOS will NOT create or manage any users,
+                so those inventory users will never appear on the system.
+
+                Either:
+                  - remove mutableUsers (Snowman will default it to false), or
+                  - set mutableUsers = false explicitly, or
+                  - remove hosts.${currentHost}.users and manage users manually.
+              '';
+            }
           ];
         }
       ]) users))
