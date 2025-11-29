@@ -46,19 +46,29 @@ let
 
   networksCfg = inv.networks or { };
 
-  # Single dotenv-style secrets file for all Wi-Fi networks.
-  # Example content (encrypted by sops):
-  #   WIFI_HOME_PASSWORD=supersecret
-  #   WIFI_WORK_PASSWORD=anothersecret
-  networkSecrets = lib.optionalAttrs (networkSecretsPath != null) {
-    "wifi-env" = {
-      sopsFile = networkSecretsPath;
-      format = "dotenv";
-      owner = "root";
-      group = "root";
-      mode = "0400";
-    };
-  };
+  # For each network <netName> with a passwordSecret, create a SOPS secret:
+  #   "wifi-<netName>-password"
+  #
+  # The data lives in networks/secrets.yml (networkSecretsPath), and
+  # passwordSecret tells us the YAML key (e.g. "home.password").
+  networkSecrets = if networkSecretsPath == null then
+    { }
+  else
+    lib.foldl' (acc: netName:
+      let net = networksCfg.${netName};
+      in if net ? passwordSecret then
+        acc // {
+          "wifi-${netName}-password" = {
+            sopsFile = networkSecretsPath;
+            format = "yaml";
+            key = net.passwordSecret; # e.g. "home.password"
+            owner = "root";
+            group = "root";
+            mode = "0400";
+          };
+        }
+      else
+        acc) { } (builtins.attrNames networksCfg);
 
   hostSecrets = config.snowman.hostSecrets or { };
   allSecrets = hostSecrets // perUserSecrets // networkSecrets;
