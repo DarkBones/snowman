@@ -5,11 +5,11 @@
   networks = {
     home = {
       ssid = "home_ssid";
-      passwordSecret = "home.password"; # key in networks/secrets.yml
+      passwordSecret = "home/password"; # key in networks/secrets.yml
     };
     work = {
       ssid = "work_ssid";
-      passwordSecret = "work.password"; # key in networks/secrets.yml
+      passwordSecret = "work/password"; # key in networks/secrets.yml
     };
   };
 
