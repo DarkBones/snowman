@@ -7,15 +7,23 @@ let
   networksCfg = inv.networks or { };
 
   # Build networking.wireless.networks from host.wifi.networks
+  # We expect each inventory network to have:
+  #   ssid = "...";
+  #   passwordSecret = "ENV_VAR_NAME";  # name in the .env secrets file
   mkWirelessNetworks = wifiCfg:
     let netNames = wifiCfg.networks or [ ];
     in lib.foldl' (acc: netName:
       let
         net = networksCfg.${netName};
         ssid = net.ssid;
-        secretName = "wifi-${netName}-password";
+        # Name of the env var that will hold the PSK in the secrets .env file
+        envVar =
+          net.passwordSecret or "SNOWMAN_WIFI_${lib.toUpper netName}_PASSWORD";
       in acc // {
-        "${ssid}" = { pskFile = config.sops.secrets.${secretName}.path; };
+        "${ssid}" = {
+          # Ask wpa_supplicant to fetch PSK from env var ENV_VAR
+          pskRaw = "ext:${envVar}";
+        };
       }) { } netNames;
 
 in {
@@ -27,6 +35,8 @@ in {
       networking.networkmanager.enable = false;
       networking.wireless.enable = true;
       networking.wireless.interfaces = [ wifi.interface or "wlan0" ];
+
+      networking.wireless.secretsFile = config.sops.secrets."wifi-env".path;
 
       networking.wireless.networks = mkWirelessNetworks wifi;
     })

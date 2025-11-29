@@ -46,25 +46,19 @@ let
 
   networksCfg = inv.networks or { };
 
-  # Derive wifi-* secrets from inventory.networks + networks/secrets.yml
-  mkNetworkSecrets = let netNames = builtins.attrNames networksCfg;
-  in lib.foldl' (acc: netName:
-    let
-      net = networksCfg.${netName};
-      passwordKey = net.passwordSecret or null;
-    in acc
-    // (lib.optionalAttrs (networkSecretsPath != null && passwordKey != null) {
-      "wifi-${netName}-password" = {
-        sopsFile = networkSecretsPath;
-        format = "yaml";
-        key = passwordKey;
-        owner = "root";
-        group = "root";
-        mode = "0400";
-      };
-    })) { } netNames;
-
-  networkSecrets = mkNetworkSecrets;
+  # Single dotenv-style secrets file for all Wi-Fi networks.
+  # Example content (encrypted by sops):
+  #   WIFI_HOME_PASSWORD=supersecret
+  #   WIFI_WORK_PASSWORD=anothersecret
+  networkSecrets = lib.optionalAttrs (networkSecretsPath != null) {
+    "wifi-env" = {
+      sopsFile = networkSecretsPath;
+      format = "dotenv";
+      owner = "root";
+      group = "root";
+      mode = "0400";
+    };
+  };
 
   hostSecrets = config.snowman.hostSecrets or { };
   allSecrets = hostSecrets // perUserSecrets // networkSecrets;
