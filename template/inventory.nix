@@ -24,14 +24,12 @@
 
   hosts = {
     vm-snowman = {
-      system = "x86_64-linux";
-      users  = [ "bas" ];
-
-      # If omitted, defaults to true (you can still change passwords via `passwd`)
-      mutableUsers = true;
-
-      # Optional: override runtime hostname (defaults to the attr name: "vm-snowman")
       hostname = "vm-snowman";
+      system = "x86_64-linux";
+      users = [ "bas" ];
+
+      # If omitted, defaults to false
+      mutableUsers = true;
 
       ########################################################
       ## Optional Wi-Fi configuration
@@ -91,15 +89,16 @@
       ############################################################
       bootstrap.usb = {
         enable = false;
-        label  = "SNOWMANKEY";
-        path   = "/mnt/snowman";
+        label = "SNOWMANKEY";
+        path = "/mnt/snowman";
         keyFile = "snowman.key";
-        fsType  = "vfat";
+        fsType = "vfat";
       };
     };
 
     # Example for a second host:
     # work-laptop = {
+    #   hostname = "work-laptop";
     #   system = "x86_64-linux";
     #   users  = [ "alice" ];
     #
@@ -109,9 +108,9 @@
 
   users = {
     bas = {
-      uid    = 1000;
+      uid = 1000;
       groups = [ "wheel" ];
-      shell  = "zsh";
+      shell = "zsh";
 
       ########################################################
       ## Login method (required by Snowman)
@@ -234,8 +233,8 @@
           ## By default this template config will pull *your*
           ## dotfiles repo as a demo.
           ####################################################
-          repo   = "https://github.com/DarkBones/dotfiles.git";
-          dir    = "Developer/dotfiles";
+          repo = "https://github.com/DarkBones/dotfiles.git";
+          dir = "Developer/dotfiles";
           branch = "main";
           sparse = [ "nvim" "zsh" ];
 
@@ -245,8 +244,8 @@
           ####################################################
           linkMap = {
             ".config/nvim" = "nvim/.config/nvim";
-            ".zsh"         = "zsh/.zsh";
-            ".zshrc"       = "zsh/.zshrc";
+            ".zsh" = "zsh/.zsh";
+            ".zshrc" = "zsh/.zshrc";
           };
         };
       };

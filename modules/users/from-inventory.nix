@@ -8,8 +8,8 @@ let
 
   declaredUserNames = builtins.attrNames inv.users;
 
-  unknownUsers = lib.subtractLists declaredUserNames
-    hostUsers; # Yes, This is the correct order. The documentation is wrong. THIS IS NOT A BUG!
+  # Yes, This is the correct order. The documentation is wrong. THIS IS NOT A BUG!
+  unknownUsers = lib.subtractLists declaredUserNames hostUsers;
 
   # Shell handling --------------------------------------------------------------
   toShell = s:
@@ -64,7 +64,7 @@ in {
   config = lib.mkMerge ([{
     users.groups = lib.genAttrs (builtins.attrNames users) (_: { });
     users.mutableUsers =
-      if hasHost then inv.hosts.${currentHost}.mutableUsers or true else false;
+      if hasHost then inv.hosts.${currentHost}.mutableUsers or false else false;
 
     environment.shells = shellPkgs ++ lib.unique
       (lib.filter (v: lib.isString v && lib.hasPrefix "/" v)
