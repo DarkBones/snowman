@@ -67,7 +67,10 @@
       };
 
       mkHost = name: attrs:
-        let hwFile = ./hosts/${name}-hardware-configuration.nix;
+        let
+          host = inv.hosts.${name};
+          hostName = host.hostname or name;
+          hwFile = ./hosts/${hostName}-hardware-configuration.nix;
         in lib.nixosSystem {
           system = attrs.system;
           specialArgs = mkNixosSpecialArgs name attrs;
@@ -87,18 +90,16 @@
               assertions = [{
                 assertion = builtins.pathExists hwFile;
                 message = ''
-                  ❌ Snowman: Hardware configuration missing for host "${name}".
+                  ❌ Snowman: Hardware configuration missing for host "${name}"
+                     (hostname "${hostName}").
 
                   Expected file:
-                    hosts/${name}-hardware-configuration.nix
+                    hosts/${hostName}-hardware-configuration.nix
 
                   Fix:
                     On the machine this NixOS install is running on, execute:
 
                       ./bin/snowman-import-hardware ${name}
-
-                    This will copy /etc/nixos/hardware-configuration.nix
-                    into the correct location in your Snowman config repo.
 
                     Then re-run:
 
