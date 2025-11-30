@@ -29,5 +29,10 @@ in {
       boot.loader.systemd-boot.enable = true;
       boot.loader.efi.canTouchEfiVariables = true;
     })
+
+    (lib.mkIf (fw == "raspberry-pi") {
+      boot.loader.grub.enable = false;
+      boot.loader.generic-extlinux-compatible.enable = true;
+    })
   ];
 }
