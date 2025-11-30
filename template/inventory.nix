@@ -23,12 +23,12 @@
   # };
 
   hosts = {
-    vm-snowman = {
+    vm = {
       hostname = "vm-snowman";
       system = "x86_64-linux";
       users = [ "bas" ];
 
-      # If omitted, defaults to false
+      # If omitted, defaults to true (you can still change passwords via `passwd`)
       mutableUsers = true;
 
       ########################################################

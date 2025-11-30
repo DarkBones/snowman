@@ -64,7 +64,7 @@ in {
   config = lib.mkMerge ([{
     users.groups = lib.genAttrs (builtins.attrNames users) (_: { });
     users.mutableUsers =
-      if hasHost then inv.hosts.${currentHost}.mutableUsers or false else false;
+      if hasHost then inv.hosts.${currentHost}.mutableUsers or true else false;
 
     environment.shells = shellPkgs ++ lib.unique
       (lib.filter (v: lib.isString v && lib.hasPrefix "/" v)
