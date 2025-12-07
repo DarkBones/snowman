@@ -32,6 +32,15 @@
       mutableUsers = true;
 
       ########################################################
+      ## Optional: Compatibility Layer (nix-ld)
+      ##
+      ## Enable this to run unpatched Linux binaries (like
+      ## VSCode Servers, Mason LSPs, or proprietary agents)
+      ## that expect /lib64/ld-linux-x86-64.so.2 to exist.
+      ########################################################
+      # compatibility = true;
+
+      ########################################################
       ## Optional Wi-Fi configuration
       ##
       ## If you leave `wifi` unset, Snowman does NOT touch
@@ -47,8 +56,8 @@
       # wifi = {
       #   mode = "static-wifi";
       #   # interface = "wlan0";  # defaults to "wlan0" if omitted
-      #   # useDHCP  = true;      # defaults to true if omitted
-      #   networks  = [ "home" ]; # names from the top-level `networks` attr
+      #   # useDHCP   = true;       # defaults to true if omitted
+      #   # networks  = [ "home" ]; # names from the top-level `networks` attr
       # };
 
       ############################################################
@@ -253,7 +262,7 @@
 
     # Example of a second user:
     # alice = {
-    #   uid    = 1001;
+    #   uid     = 1001;
     #   groups = [ "wheel" ];
     #   shell  = "bash";
     #   sshPubKeyFiles = [ ./users/keys/alice.pub ];
