@@ -12,7 +12,8 @@ let
   moduleFiles = map (name: here + "/${name}") nixFiles;
 
 in {
-  imports = [ ./hardware ./home/from-inventory.nix ./users ] ++ moduleFiles;
+  imports = [ ./hardware ./home/from-inventory.nix ./users ./compat.nix ]
+    ++ moduleFiles;
 
   config = lib.mkIf hasHost {
     home-manager.extraSpecialArgs = { inherit pkgsUnstable dotfilesSources; };
