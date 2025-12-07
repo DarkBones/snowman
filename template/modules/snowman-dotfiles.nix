@@ -1,89 +1,141 @@
-{ pkgs, currentHost, ... }:
+{ pkgs, currentHost, inv, lib, ... }:
 let
-  # CHANGEME: This is where your mutable dotfiles live in Dev mode.
-  devDotfilesPath = "$HOME/Developer/dotfiles";
+  mkUserCase = user: userData:
+    let
+      cfg = userData.roles.dotfiles or { };
+      enabled = cfg.enable or false;
 
-  # CHANGEME: This is the target directory inside the dotfiles repo
-  devNvimConfig = "${devDotfilesPath}/nvim/.config/nvim";
+      # Where the repo lives (e.g. "Developer/dotfiles")
+      repoDir = cfg.dir or "dotfiles";
+
+      # The map of { ".config/nvim" = "nvim/.config/nvim"; ... }
+      linkMap = cfg.linkMap or { };
+
+      # Convert linkMap to a Bash array entries: "target:source"
+      linkEntries = lib.concatStringsSep "\n"
+        (lib.mapAttrsToList (target: src: "  \"${target}:${src}\"") linkMap);
+    in if !enabled then
+      ""
+    else ''
+      "${user}")
+        REPO_ROOT="$HOME/${repoDir}"
+        LINKS=(
+        ${linkEntries}
+        )
+        ;;
+    '';
+
+  # Generate the case statement for all users in the inventory
+  userCases =
+    lib.concatStringsSep "\n" (lib.mapAttrsToList mkUserCase inv.users);
+
 in {
   environment.systemPackages = [
     (pkgs.writeShellScriptBin "snowman-dotfiles" ''
       set -euo pipefail
 
-      DEV_NVIM="${devNvimConfig}"
-      TARGET_NVIM="$HOME/.config/nvim"
+      # Detect who is running the script
+      CURRENT_USER="$(whoami)"
 
-      # ----------------------------------------------------------
-      # No args → show current mode
-      # ----------------------------------------------------------
-      if [ "$#" -eq 0 ]; then
-        if [ -L "$TARGET_NVIM" ]; then
-          target="$(readlink -f "$TARGET_NVIM" 2>/dev/null || true)"
+      # Default values
+      REPO_ROOT=""
+      LINKS=()
 
-          if [ -n "$target" ] && [ "$target" = "$DEV_NVIM" ]; then
-            echo "Current Snowman dotfiles mode: DEV"
-            echo "  $TARGET_NVIM -> $target"
-          else
-            echo "Current Snowman dotfiles mode: PROD"
-            echo "  $TARGET_NVIM -> $target"
-          fi
-        elif [ -e "$TARGET_NVIM" ]; then
-          echo "Current Snowman dotfiles mode: UNKNOWN"
-          echo "  $TARGET_NVIM exists but is not a symlink"
-        else
-          echo "Current Snowman dotfiles mode: UNKNOWN"
-          echo "  $TARGET_NVIM does not exist"
-        fi
+      # -----------------------------------------------------------------------
+      # DYNAMIC CONFIGURATION FROM INVENTORY.NIX
+      # -----------------------------------------------------------------------
+      case "$CURRENT_USER" in
+      ${userCases}
+      *)
+        echo "❌ Error: User '$CURRENT_USER' does not have dotfiles enabled in inventory.nix"
+        exit 1
+        ;;
+      esac
 
-        echo
-        echo "Usage:"
-        echo "  snowman-dotfiles dev    # enable dev mode (impure eval, link to repo)"
-        echo "  snowman-dotfiles prod   # enable prod mode (pure eval, nix store)"
+      show_help() {
+        echo "Usage: snowman-dotfiles [dev|prod]"
+        echo ""
+        echo "  dev   - Enable dev mode (impure, symlinks from ~/$REPO_ROOT)"
+        echo "  prod  - Enable prod mode (pure, managed by Nix Store)"
         exit 0
-      fi
+      }
+
+      if [ "$#" -eq 0 ]; then show_help; fi
 
       MODE="$1"
-      FLAKE_DIR="$(pwd)"
 
+      # -----------------------------------------------------------------------
+      # 1. PRE-FLIGHT CHECKS & CLEANUP
+      # -----------------------------------------------------------------------
       case "$MODE" in
         dev)
           echo "➜ Enabling dotfiles DEV mode (SNOWMAN_DOTFILES_MODE=dev)"
           export SNOWMAN_DOTFILES_MODE=dev
+          
+          if [ ! -d "$REPO_ROOT" ]; then
+             echo "❌ Error: Dotfiles repo not found at $REPO_ROOT"
+             echo "   (Configured via roles.dotfiles.dir in inventory.nix)"
+             exit 1
+          fi
           ;;
 
         prod|production)
           echo "➜ Enabling dotfiles PROD mode (unsetting SNOWMAN_DOTFILES_MODE)"
           unset SNOWMAN_DOTFILES_MODE
 
-          # Make sure ~/.config/nvim is clean before HM recreates it
-          if [ -e "$TARGET_NVIM" ] || [ -L "$TARGET_NVIM" ]; then
-            echo "➜ Removing existing $TARGET_NVIM before prod rebuild"
-            rm -rf "$TARGET_NVIM"
-          fi
+          # Clean up existing symlinks so Home Manager can overwrite them cleanly
+          echo "➜ Cleaning up existing symlinks..."
+          for entry in "''${LINKS[@]}"; do
+            TARGET="$HOME/''${entry%%:*}"
+            if [ -L "$TARGET" ]; then
+              rm "$TARGET"
+              echo "   Deleted symlink: $TARGET"
+            elif [ -e "$TARGET" ]; then
+              echo "   ⚠️  Warning: $TARGET exists but is not a symlink. Skipping."
+            fi
+          done
           ;;
-
         *)
-          echo "Usage: snowman-dotfiles [dev|prod]" >&2
-          exit 1
+          show_help
           ;;
       esac
 
-      echo "➜ Rebuilding NixOS for host ${currentHost} in $MODE mode..."
+      # -----------------------------------------------------------------------
+      # 2. REBUILD NIXOS
+      # -----------------------------------------------------------------------
+      echo "➜ Rebuilding NixOS for host ${currentHost}..."
 
       if [ "$MODE" = "dev" ]; then
-        # Dev: needs SNOWMAN_DOTFILES_MODE + --impure so builtins.getEnv works
-        sudo -E nixos-rebuild switch --impure --flake ".''${currentHost}"
-
-        if [ -d "$DEV_NVIM" ]; then
-          echo "➜ Linking $TARGET_NVIM -> $DEV_NVIM (dev mode)"
-          rm -rf "$TARGET_NVIM"
-          ln -s "$DEV_NVIM" "$TARGET_NVIM"
-        else
-          echo "⚠ DEV nvim dir '$DEV_NVIM' does not exist, skipping link." >&2
-        fi
+        sudo -E nixos-rebuild switch --impure --flake "/etc/nixos#${currentHost}"
       else
-        # Prod: pure evaluation, no env dependency
-        sudo nixos-rebuild switch --flake ".''${currentHost}"
+        sudo nixos-rebuild switch --flake "/etc/nixos#${currentHost}"
+      fi
+
+      # -----------------------------------------------------------------------
+      # 3. POST-BUILD LINKING (DEV MODE ONLY)
+      # -----------------------------------------------------------------------
+      if [ "$MODE" = "dev" ]; then
+        echo "➜ Creating mutable symlinks..."
+        
+        for entry in "''${LINKS[@]}"; do
+          TARGET="$HOME/''${entry%%:*}"
+          SOURCE="$REPO_ROOT/''${entry##*:}"
+          
+          # Ensure parent dir exists
+          mkdir -p "$(dirname "$TARGET")"
+
+          if [ -e "$TARGET" ] || [ -L "$TARGET" ]; then
+             echo "   Replacing existing: $TARGET"
+             rm -rf "$TARGET"
+          fi
+
+          if [ -e "$SOURCE" ]; then
+            ln -s "$SOURCE" "$TARGET"
+            echo "   ✅ Linked: $TARGET -> $SOURCE"
+          else
+            echo "   ❌ Error: Source file not found: $SOURCE"
+          fi
+        done
       fi
     '')
   ];
