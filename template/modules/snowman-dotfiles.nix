@@ -25,7 +25,6 @@ let
         ;;
     '';
 
-  # Generate the case statement for all users in the inventory
   userCases =
     lib.concatStringsSep "\n" (lib.mapAttrsToList mkUserCase inv.users);
 
@@ -34,10 +33,7 @@ in {
     (pkgs.writeShellScriptBin "snowman-dotfiles" ''
       set -euo pipefail
 
-      # Detect who is running the script
       CURRENT_USER="$(whoami)"
-
-      # Default values
       REPO_ROOT=""
       LINKS=()
 
