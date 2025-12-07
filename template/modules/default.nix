@@ -12,8 +12,8 @@ let
   moduleFiles = map (name: here + "/${name}") nixFiles;
 
 in {
-  imports = [ ./hardware ./home/from-inventory.nix ./users ./compat.nix ]
-    ++ moduleFiles;
+  # We import ./snowman-dotfiles.nix automatically via moduleFiles because it's in this folder
+  imports = [ ./hardware ./home/from-inventory.nix ./users ] ++ moduleFiles;
 
   config = lib.mkIf hasHost {
     home-manager.extraSpecialArgs = { inherit pkgsUnstable dotfilesSources; };
