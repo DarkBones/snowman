@@ -63,7 +63,7 @@
         sopsConfigPath = ./.sops.yaml;
         networkSecretsPath = ./networks/secrets.yml;
 
-        extraHomeImports = [ ./home/roles ];
+        extraHomeImports = [ ./home/roles ./home/overrides ];
       };
 
       mkHost = name: attrs:

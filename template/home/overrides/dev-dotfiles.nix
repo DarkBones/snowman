@@ -2,29 +2,39 @@
 let
   cfg = config.roles.dotfiles or { };
 
-  # 1. Determine Prod Source (Repo)
-  # Try sourceKey first (e.g. "bas"), fallback to username
   sourceKey = cfg.sourceKey or config.home.username;
   dotfilesRepo = dotfilesSources.${sourceKey} or null;
 
-  # 2. Determine Mode
   mode = builtins.getEnv "SNOWMAN_DOTFILES_MODE";
   isDev = mode == "dev";
 
+  # Calculate the absolute path to your local repo for Dev mode
+  # e.g. /home/bas/Developer/dotfiles
+  repoDir = "${config.home.homeDirectory}/${cfg.dir}";
+
+  # Determine if we should replace the activation script
+  # We do this if we are managing the files via home.file (Dev or Prod-Pinned)
+  shouldReplaceScript = isDev || dotfilesRepo != null;
+
 in {
-  # Only run if dotfiles role is enabled
   config = lib.mkIf (cfg.enable or false) {
 
-    # Iterate over the linkMap from inventory
-    # and generate the correct home.file logic for each file
+    # 1. Disable the Base activation script so it doesn't fight us
+    home.activation.dotfilesSync =
+      lib.mkIf shouldReplaceScript (lib.mkForce "");
+
+    # 2. Generate home.file entries
     home.file = lib.mapAttrs (target: srcPath:
-      if isDev then {
-        enable = false;
-      } else if dotfilesRepo != null then {
+      if isDev then
+      # Dev Mode: Home Manager creates a symlink to your local repo
+      {
+        source = config.lib.file.mkOutOfStoreSymlink "${repoDir}/${srcPath}";
+      } else if dotfilesRepo != null then
+      # Prod Mode: Home Manager creates a symlink to the Nix Store
+      {
         source = "${dotfilesRepo}/${srcPath}";
-        recursive =
-          false; # Important: keep false to avoid overwriting repo in Dev mistakes
       } else
+      # Git Mode (Fallback): Do nothing, let the activation script handle it
         { }) (cfg.linkMap or { });
   };
 }
