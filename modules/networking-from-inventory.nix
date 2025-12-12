@@ -45,7 +45,7 @@ in {
 
     # --- Roaming mode via NetworkManager --------------------------------------
     (lib.mkIf (hasHost && wifi != null && wifi.mode == "roaming") {
-      networking.useDHCP = wifi.useDHCP or true;
+      networking.useDHCP = lib.mkForce false;
       networking.networkmanager.enable = true;
       networking.wireless.enable = false;
     })
