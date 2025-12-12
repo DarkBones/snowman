@@ -110,7 +110,6 @@ in {
     system.activationScripts."00-snowman-import-sops-key" = lib.mkIf usbMode ''
       set -euo pipefail
 
-      # FIX: Use a variable to track if we should proceed, instead of 'exit 0'
       PROCEED=1
 
       if (systemd-detect-virt > /dev/null); then
@@ -123,45 +122,54 @@ in {
       USB_LABEL="${usbCfg.label}"
       USB_KEY_FILE="${usbCfg.keyFile}"
 
-      if [ "$PROCEED" -eq 1 ] && [ -f "$TARGET" ]; then
-        echo "[snowman] Existing SOPS age key at $TARGET – skipping USB import."
-        PROCEED=0
-      fi
-
       if [ "$PROCEED" -eq 1 ]; then
-        echo "[snowman] Importing SOPS age key from USB label ${usbCfg.label}"
+        echo "[snowman] Checking SOPS age key against USB..."
+        
+        # 1. Mount the USB
         mkdir -p "$USB_MOUNT"
-
         mounted_here=0
+        
         if ! mountpoint -q "$USB_MOUNT"; then
           if [ -b "/dev/disk/by-label/$USB_LABEL" ]; then
-            echo "[snowman] Mounting /dev/disk/by-label/$USB_LABEL on $USB_MOUNT"
             mount "/dev/disk/by-label/$USB_LABEL" "$USB_MOUNT"
             mounted_here=1
           else
-            echo "[snowman] ERROR: device with label $USB_LABEL not found."
-            # We can exit 1 here because this IS a fatal error we want to stop on
+            echo "[snowman] ERROR: Device $USB_LABEL not found. Cannot bootstrap secrets."
             exit 1
           fi
         fi
 
+        # 2. Check source key
         if [ ! -f "$USB_MOUNT/$USB_KEY_FILE" ]; then
-          echo "[snowman] ERROR: key file '$USB_KEY_FILE' not found on $USB_MOUNT."
-          if [ "$mounted_here" = 1 ]; then
-            umount "$USB_MOUNT" || true
-          fi
+          echo "[snowman] ERROR: Key file '$USB_KEY_FILE' missing on USB."
+          if [ "$mounted_here" -eq 1 ]; then umount "$USB_MOUNT"; fi
           exit 1
         fi
 
-        echo "[snowman] Copying key to $TARGET"
-        install -d -m 0700 /var/lib/sops-nix
-        install -m 0400 -o root -g root "$USB_MOUNT/$USB_KEY_FILE" "$TARGET"
-
-        if [ "$mounted_here" = 1 ]; then
-          umount "$USB_MOUNT" || true
+        # 3. Compare and Copy (The Fix)
+        DO_COPY=0
+        if [ ! -f "$TARGET" ]; then
+          echo "[snowman] Key not found at $TARGET. Copying..."
+          DO_COPY=1
+        else
+          # Compare content. If different, overwrite.
+          if ! cmp -s "$USB_MOUNT/$USB_KEY_FILE" "$TARGET"; then
+             echo "[snowman] Key mismatch! Overwriting stale key with USB key."
+             DO_COPY=1
+          else
+             echo "[snowman] Key matches USB. No change needed."
+          fi
         fi
 
-        echo "[snowman] SOPS age key imported successfully."
+        if [ "$DO_COPY" -eq 1 ]; then
+          install -d -m 0700 /var/lib/sops-nix
+          install -m 0400 -o root -g root "$USB_MOUNT/$USB_KEY_FILE" "$TARGET"
+        fi
+
+        # 4. Cleanup
+        if [ "$mounted_here" -eq 1 ]; then
+          umount "$USB_MOUNT" || true
+        fi
       fi
     '';
 
