@@ -30,9 +30,15 @@ in {
       boot.loader.efi.canTouchEfiVariables = true;
     })
 
+    # Raspberry Pi specific hardening
     (lib.mkIf (fw == "raspberry-pi") {
       boot.loader.grub.enable = false;
       boot.loader.generic-extlinux-compatible.enable = true;
+
+      # HARDENING: Trust the CPU's hardware RNG.
+      # This ensures the kernel uses the Pi's built-in RNG to seed
+      # the entropy pool immediately at boot.
+      security.rng-tools.enable = true;
     })
   ];
 }
