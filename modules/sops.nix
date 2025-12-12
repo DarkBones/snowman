@@ -110,9 +110,12 @@ in {
     system.activationScripts."00-snowman-import-sops-key" = lib.mkIf usbMode ''
       set -euo pipefail
 
+      # FIX: Use a variable to track if we should proceed, instead of 'exit 0'
+      PROCEED=1
+
       if (systemd-detect-virt > /dev/null); then
          echo "[snowman] In a VM, skipping USB key import."
-         exit 0
+         PROCEED=0
       fi
 
       TARGET="/var/lib/sops-nix/age.key"
@@ -120,44 +123,46 @@ in {
       USB_LABEL="${usbCfg.label}"
       USB_KEY_FILE="${usbCfg.keyFile}"
 
-      if [ -f "$TARGET" ]; then
+      if [ "$PROCEED" -eq 1 ] && [ -f "$TARGET" ]; then
         echo "[snowman] Existing SOPS age key at $TARGET – skipping USB import."
-        exit 0
+        PROCEED=0
       fi
 
-      echo "[snowman] Importing SOPS age key from USB label ''${USB_LABEL}"
+      if [ "$PROCEED" -eq 1 ]; then
+        echo "[snowman] Importing SOPS age key from USB label ${usbCfg.label}"
+        mkdir -p "$USB_MOUNT"
 
-      mkdir -p "$USB_MOUNT"
+        mounted_here=0
+        if ! mountpoint -q "$USB_MOUNT"; then
+          if [ -b "/dev/disk/by-label/$USB_LABEL" ]; then
+            echo "[snowman] Mounting /dev/disk/by-label/$USB_LABEL on $USB_MOUNT"
+            mount "/dev/disk/by-label/$USB_LABEL" "$USB_MOUNT"
+            mounted_here=1
+          else
+            echo "[snowman] ERROR: device with label $USB_LABEL not found."
+            # We can exit 1 here because this IS a fatal error we want to stop on
+            exit 1
+          fi
+        fi
 
-      mounted_here=0
-      if ! mountpoint -q "$USB_MOUNT"; then
-        if [ -b "/dev/disk/by-label/$USB_LABEL" ]; then
-          echo "[snowman] Mounting /dev/disk/by-label/$USB_LABEL on $USB_MOUNT"
-          mount "/dev/disk/by-label/$USB_LABEL" "$USB_MOUNT"
-          mounted_here=1
-        else
-          echo "[snowman] ERROR: device with label $USB_LABEL not found."
+        if [ ! -f "$USB_MOUNT/$USB_KEY_FILE" ]; then
+          echo "[snowman] ERROR: key file '$USB_KEY_FILE' not found on $USB_MOUNT."
+          if [ "$mounted_here" = 1 ]; then
+            umount "$USB_MOUNT" || true
+          fi
           exit 1
         fi
-      fi
 
-      if [ ! -f "$USB_MOUNT/$USB_KEY_FILE" ]; then
-        echo "[snowman] ERROR: key file '$USB_KEY_FILE' not found on $USB_MOUNT."
+        echo "[snowman] Copying key to $TARGET"
+        install -d -m 0700 /var/lib/sops-nix
+        install -m 0400 -o root -g root "$USB_MOUNT/$USB_KEY_FILE" "$TARGET"
+
         if [ "$mounted_here" = 1 ]; then
           umount "$USB_MOUNT" || true
         fi
-        exit 1
+
+        echo "[snowman] SOPS age key imported successfully."
       fi
-
-      echo "[snowman] Copying key to $TARGET"
-      install -d -m 0700 /var/lib/sops-nix
-      install -m 0400 -o root -g root "$USB_MOUNT/$USB_KEY_FILE" "$TARGET"
-
-      if [ "$mounted_here" = 1 ]; then
-        umount "$USB_MOUNT" || true
-      fi
-
-      echo "[snowman] SOPS age key imported successfully."
     '';
 
     assertions = sopsPasswordKeyAssertions ++ networkPasswordAssertions;
