@@ -134,8 +134,8 @@ in {
             mount "/dev/disk/by-label/$USB_LABEL" "$USB_MOUNT"
             mounted_here=1
           else
-            echo "[snowman] ERROR: Device $USB_LABEL not found. Cannot bootstrap secrets."
-            exit 1
+            echo "[snowman] WARNING: Device $USB_LABEL not found. Skipping bootstrap import."
+            exit 0
           fi
         fi
 
