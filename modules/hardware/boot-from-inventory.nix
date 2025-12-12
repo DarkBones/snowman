@@ -38,7 +38,7 @@ in {
       # HARDENING: Trust the CPU's hardware RNG.
       # This ensures the kernel uses the Pi's built-in RNG to seed
       # the entropy pool immediately at boot.
-      services.rngd.enable = true;
+      # services.rngd.enable = true;
     })
   ];
 }
