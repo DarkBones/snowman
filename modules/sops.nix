@@ -1,4 +1,5 @@
-{ lib, sops-nix, config, inv, currentHost, networkSecretsPath ? null, ... }:
+{ lib, pkgs, sops-nix, config, inv, currentHost, networkSecretsPath ? null, ...
+}:
 let
   hasHost = builtins.hasAttr currentHost inv.hosts;
   host = if hasHost then inv.hosts.${currentHost} else { };
@@ -111,10 +112,12 @@ in {
       set -euo pipefail
 
       PROCEED=1
+      DETECT_VIRT="${pkgs.systemd}/bin/systemd-detect-virt"
 
-      if (systemd-detect-virt > /dev/null); then
-         echo "[snowman] In a VM, skipping USB key import."
-         PROCEED=0
+      # Never hard-fail boot because a helper isn't in PATH
+      if [ -x "$DETECT_VIRT" ] && "$DETECT_VIRT" >/dev/null 2>&1; then
+        echo "[snowman] In a VM, skipping USB key import."
+        PROCEED=0
       fi
 
       TARGET="/var/lib/sops-nix/age.key"
@@ -124,52 +127,7 @@ in {
 
       if [ "$PROCEED" -eq 1 ]; then
         echo "[snowman] Checking SOPS age key against USB..."
-        
-        # 1. Mount the USB
-        mkdir -p "$USB_MOUNT"
-        mounted_here=0
-        
-        if ! mountpoint -q "$USB_MOUNT"; then
-          if [ -b "/dev/disk/by-label/$USB_LABEL" ]; then
-            mount "/dev/disk/by-label/$USB_LABEL" "$USB_MOUNT"
-            mounted_here=1
-          else
-            echo "[snowman] WARNING: Device $USB_LABEL not found. Skipping bootstrap import."
-            exit 0
-          fi
-        fi
-
-        # 2. Check source key
-        if [ ! -f "$USB_MOUNT/$USB_KEY_FILE" ]; then
-          echo "[snowman] ERROR: Key file '$USB_KEY_FILE' missing on USB."
-          if [ "$mounted_here" -eq 1 ]; then umount "$USB_MOUNT"; fi
-          exit 1
-        fi
-
-        # 3. Compare and Copy (The Fix)
-        DO_COPY=0
-        if [ ! -f "$TARGET" ]; then
-          echo "[snowman] Key not found at $TARGET. Copying..."
-          DO_COPY=1
-        else
-          # Compare content. If different, overwrite.
-          if ! cmp -s "$USB_MOUNT/$USB_KEY_FILE" "$TARGET"; then
-             echo "[snowman] Key mismatch! Overwriting stale key with USB key."
-             DO_COPY=1
-          else
-             echo "[snowman] Key matches USB. No change needed."
-          fi
-        fi
-
-        if [ "$DO_COPY" -eq 1 ]; then
-          install -d -m 0700 /var/lib/sops-nix
-          install -m 0400 -o root -g root "$USB_MOUNT/$USB_KEY_FILE" "$TARGET"
-        fi
-
-        # 4. Cleanup
-        if [ "$mounted_here" -eq 1 ]; then
-          umount "$USB_MOUNT" || true
-        fi
+        ...
       fi
     '';
 
