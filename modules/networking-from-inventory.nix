@@ -56,7 +56,8 @@ in {
       networking.wireless.secretsFile = "/run/secrets/wireless.conf";
 
       system.activationScripts."snowman-wireless-secrets" = ''
-        set -euo pipefail
+        set -u
+        set -o pipefail
 
         outfile="/run/secrets/wireless.conf"
         mkdir -p /run/secrets

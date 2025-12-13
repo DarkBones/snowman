@@ -109,26 +109,70 @@ in {
 
     # Bootstrap: copy age key from USB -> /var/lib/sops-nix/age.key (once)
     system.activationScripts."00-snowman-import-sops-key" = lib.mkIf usbMode ''
-      set -euo pipefail
+      set -u
+      set -o pipefail
 
-      PROCEED=1
-      DETECT_VIRT="${pkgs.systemd}/bin/systemd-detect-virt"
-
-      # Never hard-fail boot because a helper isn't in PATH
-      if [ -x "$DETECT_VIRT" ] && "$DETECT_VIRT" >/dev/null 2>&1; then
-        echo "[snowman] In a VM, skipping USB key import."
-        PROCEED=0
-      fi
+      log()  { echo "[snowman] $*"; }
+      warn() { echo "[snowman] WARNING: $*" >&2; }
 
       TARGET="/var/lib/sops-nix/age.key"
       USB_MOUNT="${usbCfg.path}"
       USB_LABEL="${usbCfg.label}"
       USB_KEY_FILE="${usbCfg.keyFile}"
 
-      if [ "$PROCEED" -eq 1 ]; then
-        echo "[snowman] Checking SOPS age key against USB..."
-        ...
+      DETECT_VIRT="${pkgs.systemd}/bin/systemd-detect-virt"
+
+      # If helper exists and we are in a VM: skip
+      if [ -x "$DETECT_VIRT" ] && "$DETECT_VIRT" >/dev/null 2>&1; then
+        log "In a VM, skipping USB key import."
+        exit 0
       fi
+
+      log "Checking SOPS age key against USB..."
+
+      mkdir -p "$USB_MOUNT" || { warn "Failed to create mount dir $USB_MOUNT"; exit 0; }
+
+      mounted_here=0
+      if ! mountpoint -q "$USB_MOUNT" 2>/dev/null; then
+        if [ -b "/dev/disk/by-label/$USB_LABEL" ]; then
+          if mount "/dev/disk/by-label/$USB_LABEL" "$USB_MOUNT"; then
+            mounted_here=1
+          else
+            warn "Failed to mount /dev/disk/by-label/$USB_LABEL at $USB_MOUNT"
+            exit 0
+          fi
+        else
+          warn "Device label '$USB_LABEL' not found. Skipping bootstrap import."
+          exit 0
+        fi
+      fi
+
+      SRC="$USB_MOUNT/$USB_KEY_FILE"
+      if [ ! -f "$SRC" ]; then
+        warn "Key file '$USB_KEY_FILE' missing on USB. Skipping."
+        if [ "$mounted_here" -eq 1 ]; then umount "$USB_MOUNT" 2>/dev/null || true; fi
+        exit 0
+      fi
+
+      install -d -m 0700 /var/lib/sops-nix 2>/dev/null || true
+
+      if [ ! -f "$TARGET" ]; then
+        log "Key not found at $TARGET. Copying from USB..."
+        install -m 0400 -o root -g root "$SRC" "$TARGET" 2>/dev/null || warn "Failed to install key to $TARGET"
+      else
+        if cmp -s "$SRC" "$TARGET"; then
+          log "Key matches USB. No change needed."
+        else
+          warn "Key mismatch. Overwriting stale key with USB key."
+          install -m 0400 -o root -g root "$SRC" "$TARGET" 2>/dev/null || warn "Failed to overwrite key at $TARGET"
+        fi
+      fi
+
+      if [ "$mounted_here" -eq 1 ]; then
+        umount "$USB_MOUNT" 2>/dev/null || true
+      fi
+
+      exit 0
     '';
 
     assertions = sopsPasswordKeyAssertions ++ networkPasswordAssertions;
