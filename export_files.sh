@@ -8,7 +8,8 @@
 #   ./export_files.sh zsh
 #   ./export_files.sh zsh,nix,yml,txt
 
-set -euo pipefail
+set -u
+# set -o pipefail
 
 # --- Arguments & validation ---------------------------------------------------
 
