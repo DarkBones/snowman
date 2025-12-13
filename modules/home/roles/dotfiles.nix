@@ -109,7 +109,7 @@ in {
               -t ed25519 \
               -N "" \
               -f "$keyfile" \
-              -C "$USER@$("${pkgs.inetutils}/bin/hostname")"
+              -C "$USER@$(hostname -s 2>/dev/null || hostname)"
           fi
 
           REPO=${lib.escapeShellArg cfg.repo}
