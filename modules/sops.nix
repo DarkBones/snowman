@@ -112,6 +112,11 @@ in {
       set -u
       set -o pipefail
 
+      if [ ! -e /run/current-system ]; then
+        echo "[snowman] Install environment detected. Skipping USB key import."
+        exit 0
+      fi
+
       log()  { echo "[snowman] $*"; }
       warn() { echo "[snowman] WARNING: $*" >&2; }
 

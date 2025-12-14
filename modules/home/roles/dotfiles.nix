@@ -89,7 +89,7 @@ in {
     # --- Git mode: fall back to git clone/pull at activation time ---
     #
     (lib.mkIf (!hasSourceKey) {
-      home.packages = with pkgs; [ git openssh ];
+      home.packages = with pkgs; [ git inetutils openssh ];
       programs.ssh.enable = true;
 
       home.activation.dotfilesSync =
@@ -109,7 +109,7 @@ in {
               -t ed25519 \
               -N "" \
               -f "$keyfile" \
-              -C "$USER@$(hostname -s 2>/dev/null || hostname)"
+              -C "$USER@$("${pkgs.inetutils}/bin/hostname")"
           fi
 
           REPO=${lib.escapeShellArg cfg.repo}
