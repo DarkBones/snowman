@@ -112,72 +112,76 @@ in {
       set -u
       set -o pipefail
 
-      if [ ! -e /run/current-system ]; then
-        echo "[snowman] Install environment detected. Skipping USB key import."
-        exit 0
-      fi
-
-      log()  { echo "[snowman] $*"; }
-      warn() { echo "[snowman] WARNING: $*" >&2; }
-
-      TARGET="/var/lib/sops-nix/age.key"
-      USB_MOUNT="${usbCfg.path}"
-      USB_LABEL="${usbCfg.label}"
-      USB_KEY_FILE="${usbCfg.keyFile}"
-
+      # Use absolute paths for binaries not in global PATH
+      MOUNT="${pkgs.util-linux}/bin/mount"
+      UMOUNT="${pkgs.util-linux}/bin/umount"
+      MOUNTPOINT="${pkgs.util-linux}/bin/mountpoint"
+      INSTALL="${pkgs.coreutils}/bin/install"
+      CMP="${pkgs.diffutils}/bin/cmp"
       DETECT_VIRT="${pkgs.systemd}/bin/systemd-detect-virt"
 
-      # If helper exists and we are in a VM: skip
-      if [ -x "$DETECT_VIRT" ] && "$DETECT_VIRT" >/dev/null 2>&1; then
-        log "In a VM, skipping USB key import."
-        exit 0
-      fi
+      if [ -e /run/current-system ]; then
 
-      log "Checking SOPS age key against USB..."
+        log()  { echo "[snowman] $*"; }
+        warn() { echo "[snowman] WARNING: $*" >&2; }
 
-      mkdir -p "$USB_MOUNT" || { warn "Failed to create mount dir $USB_MOUNT"; exit 0; }
+        TARGET="/var/lib/sops-nix/age.key"
+        USB_MOUNT="${usbCfg.path}"
+        USB_LABEL="${usbCfg.label}"
+        USB_KEY_FILE="${usbCfg.keyFile}"
 
-      mounted_here=0
-      if ! mountpoint -q "$USB_MOUNT" 2>/dev/null; then
-        if [ -b "/dev/disk/by-label/$USB_LABEL" ]; then
-          if mount "/dev/disk/by-label/$USB_LABEL" "$USB_MOUNT"; then
-            mounted_here=1
-          else
-            warn "Failed to mount /dev/disk/by-label/$USB_LABEL at $USB_MOUNT"
-            exit 0
+        # If helper exists and we are in a VM: skip
+        if [ -x "$DETECT_VIRT" ] && "$DETECT_VIRT" >/dev/null 2>&1; then
+          log "In a VM, skipping USB key import."
+        else
+          log "Checking SOPS age key against USB..."
+
+          mkdir -p "$USB_MOUNT" || warn "Failed to create mount dir $USB_MOUNT"
+
+          if [ -d "$USB_MOUNT" ]; then
+            mounted_here=0
+            if ! "$MOUNTPOINT" -q "$USB_MOUNT" 2>/dev/null; then
+              if [ -b "/dev/disk/by-label/$USB_LABEL" ]; then
+                if "$MOUNT" "/dev/disk/by-label/$USB_LABEL" "$USB_MOUNT"; then
+                  mounted_here=1
+                else
+                  warn "Failed to mount /dev/disk/by-label/$USB_LABEL at $USB_MOUNT"
+                fi
+              else
+                warn "Device label '$USB_LABEL' not found. Skipping bootstrap import."
+              fi
+            fi
+
+            # Check if mount succeeded or was already mounted
+            if "$MOUNTPOINT" -q "$USB_MOUNT" 2>/dev/null; then
+               SRC="$USB_MOUNT/$USB_KEY_FILE"
+               if [ ! -f "$SRC" ]; then
+                 warn "Key file '$USB_KEY_FILE' missing on USB. Skipping."
+               else
+                 "$INSTALL" -d -m 0700 /var/lib/sops-nix 2>/dev/null || true
+
+                 if [ ! -f "$TARGET" ]; then
+                   log "Key not found at $TARGET. Copying from USB..."
+                   "$INSTALL" -m 0400 -o root -g root "$SRC" "$TARGET" 2>/dev/null || warn "Failed to install key to $TARGET"
+                 else
+                   if "$CMP" -s "$SRC" "$TARGET"; then
+                     log "Key matches USB. No change needed."
+                   else
+                     warn "Key mismatch. Overwriting stale key with USB key."
+                     "$INSTALL" -m 0400 -o root -g root "$SRC" "$TARGET" 2>/dev/null || warn "Failed to overwrite key at $TARGET"
+                   fi
+                 fi
+               fi
+
+               if [ "$mounted_here" -eq 1 ]; then
+                 "$UMOUNT" "$USB_MOUNT" 2>/dev/null || true
+               fi
+            fi
           fi
-        else
-          warn "Device label '$USB_LABEL' not found. Skipping bootstrap import."
-          exit 0
         fi
-      fi
-
-      SRC="$USB_MOUNT/$USB_KEY_FILE"
-      if [ ! -f "$SRC" ]; then
-        warn "Key file '$USB_KEY_FILE' missing on USB. Skipping."
-        if [ "$mounted_here" -eq 1 ]; then umount "$USB_MOUNT" 2>/dev/null || true; fi
-        exit 0
-      fi
-
-      install -d -m 0700 /var/lib/sops-nix 2>/dev/null || true
-
-      if [ ! -f "$TARGET" ]; then
-        log "Key not found at $TARGET. Copying from USB..."
-        install -m 0400 -o root -g root "$SRC" "$TARGET" 2>/dev/null || warn "Failed to install key to $TARGET"
       else
-        if cmp -s "$SRC" "$TARGET"; then
-          log "Key matches USB. No change needed."
-        else
-          warn "Key mismatch. Overwriting stale key with USB key."
-          install -m 0400 -o root -g root "$SRC" "$TARGET" 2>/dev/null || warn "Failed to overwrite key at $TARGET"
-        fi
+        echo "[snowman] Install environment detected. Skipping USB key import."
       fi
-
-      if [ "$mounted_here" -eq 1 ]; then
-        umount "$USB_MOUNT" 2>/dev/null || true
-      fi
-
-      exit 0
     '';
 
     assertions = sopsPasswordKeyAssertions ++ networkPasswordAssertions;
