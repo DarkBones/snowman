@@ -95,7 +95,7 @@ in {
 
     # Always use a local key file; for USB mode we copy into here.
     sops = {
-      validateSopsFiles = false;
+      validateSopsFiles = true;
       age = {
         keyFile = "/var/lib/sops-nix/age.key";
 

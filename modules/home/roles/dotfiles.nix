@@ -10,6 +10,13 @@ let
   else
     null;
 
+  # Heuristic: detect SSH-style git remotes.
+  # Covers:
+  #   - ssh://host/path
+  #   - user@host:org/repo.git   (incl. git@github.com:org/repo.git)
+  isSshRemote = cfg.repo != "" && (lib.hasPrefix "ssh://" cfg.repo
+    || (builtins.match "^[^@]+@[^:]+:.*" cfg.repo != null));
+
 in {
   options.roles.dotfiles = {
     enable = lib.mkEnableOption "Dotfiles role";
@@ -58,9 +65,41 @@ in {
   };
 
   config = lib.mkIf cfg.enable (lib.mkMerge [
-    #
-    # --- Reproducible mode: use flake input (store path) ---
-    #
+
+    # -------------------------------------------------------------------------
+    # Shared: tooling + dependency declaration
+    # -------------------------------------------------------------------------
+    {
+      # Tooling dotfiles needs in git mode
+      home.packages = with pkgs; [ git openssh inetutils ];
+
+      # Dotfiles may require SSH; default it on, but allow explicit override.
+      roles.ssh.enable = lib.mkDefault true;
+
+      assertions = [{
+        assertion =
+          # pinned mode -> no ssh needed
+          hasSourceKey
+          # git mode not configured -> no ssh needed
+          || cfg.repo == ""
+          # git mode with https -> ssh role optional
+          || (!isSshRemote)
+          # git mode with ssh -> ssh role must be enabled
+          || (config.roles.ssh.enable or false);
+        message = ''
+          roles.dotfiles is configured to use an SSH git remote (${cfg.repo}),
+          but roles.ssh.enable is false.
+
+          Fix:
+            - set roles.ssh.enable = true; OR
+            - use an https remote for roles.dotfiles.repo.
+        '';
+      }];
+    }
+
+    # -------------------------------------------------------------------------
+    # Reproducible mode: use flake input (store path)
+    # -------------------------------------------------------------------------
     (lib.mkIf hasSourceKey {
       home.activation.dotfilesSync =
         lib.hm.dag.entryAfter [ "writeBoundary" ] ''
@@ -85,11 +124,10 @@ in {
         '';
     })
 
-    #
-    # --- Git mode: fall back to git clone/pull at activation time ---
-    #
+    # -------------------------------------------------------------------------
+    # Git mode: fall back to git clone/pull at activation time
+    # -------------------------------------------------------------------------
     (lib.mkIf (!hasSourceKey) {
-      home.packages = with pkgs; [ git inetutils openssh ];
       programs.ssh.enable = true;
 
       home.activation.dotfilesSync =
@@ -97,20 +135,6 @@ in {
           set -euo pipefail
 
           export PATH="${pkgs.openssh}/bin:${pkgs.git}/bin:$PATH"
-
-          keydir="$HOME/.ssh"
-          keyfile="$keydir/id_ed25519"
-
-          if [ ! -f "$keyfile" ]; then
-            echo "[dotfiles] Generating SSH key at $keyfile"
-            mkdir -p "$keydir"
-            chmod 700 "$keydir"
-            "${pkgs.openssh}/bin/ssh-keygen" \
-              -t ed25519 \
-              -N "" \
-              -f "$keyfile" \
-              -C "$USER@$("${pkgs.inetutils}/bin/hostname")"
-          fi
 
           REPO=${lib.escapeShellArg cfg.repo}
           BRANCH=${lib.escapeShellArg cfg.branch}
