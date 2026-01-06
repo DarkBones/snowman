@@ -2,18 +2,13 @@
 let
   hasHost = builtins.hasAttr currentHost inv.hosts;
   host = if hasHost then inv.hosts.${currentHost} else { };
+
   hasHw = hasHost && (host ? hardware);
-  boot = if hasHw then host.hardware.boot else { };
+  boot = if hasHw then (host.hardware.boot or { }) else { };
   fw = boot.firmware or null;
 in {
   config = lib.mkMerge [
-    # If the user provides *no* hardware block, disable ALL bootloaders.
-    (lib.mkIf (!hasHw) {
-      boot.loader.grub.enable = lib.mkForce false;
-      boot.loader.systemd-boot.enable = lib.mkForce false;
-    })
-
-    # If firmware = "none", also disable bootloaders.
+    # If firmware = "none", explicitly disable bootloaders.
     (lib.mkIf (fw == "none") {
       boot.loader.grub.enable = lib.mkForce false;
       boot.loader.systemd-boot.enable = lib.mkForce false;
@@ -38,7 +33,19 @@ in {
       # HARDENING: Trust the CPU's hardware RNG.
       # This ensures the kernel uses the Pi's built-in RNG to seed
       # the entropy pool immediately at boot.
-      # services.rngd.enable = true;
+      services.rngd.enable = true;
     })
+
+    {
+      assertions = [{
+        assertion = !hasHw || fw != null;
+        message = ''
+          Inventory: hosts.${currentHost}.hardware.boot.firmware must be set
+          when hosts.${currentHost}.hardware is defined.
+
+          Valid values: "efi", "bios", "raspberry-pi", "none"
+        '';
+      }];
+    }
   ];
 }
