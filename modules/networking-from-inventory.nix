@@ -1,4 +1,4 @@
-{ lib, inv, currentHost, config, ... }:
+{ lib, inv, currentHost, config, pkgs, ... }:
 let
   hasHost = builtins.hasAttr currentHost inv.hosts;
   host = if hasHost then inv.hosts.${currentHost} else { };
@@ -9,14 +9,18 @@ let
 
   networksCfg = inv.networks or { };
 
-  # All networks that declare a passwordSecret (global)
-  networksWithPassword =
-    lib.filterAttrs (_: net: net ? passwordSecret) networksCfg;
-
   # Networks this host wants to use
   wifiNetworks = if wifi != null then wifi.networks or [ ] else [ ];
 
-  # Subset of networksWithPassword that are referenced by this host
+  wifiMode = if wifi == null then null else (wifi.mode or null);
+
+  isRoaming = hasHost && wifi != null && wifiMode == "roaming";
+  roamingHasNetworks = isRoaming && (wifiNetworks != [ ]);
+
+  # Networks with secrets (used by static-wifi + wireless.conf)
+  networksWithPassword =
+    lib.filterAttrs (_: net: net ? passwordSecret) networksCfg;
+
   wifiNetworksWithPassword =
     lib.filterAttrs (netName: _: lib.elem netName wifiNetworks)
     networksWithPassword;
@@ -30,9 +34,35 @@ let
       in acc // { "${ssid}" = { pskRaw = "ext:psk_${netName}"; }; }) { }
     netNames;
 
+  # Namespace UUID for deterministic NetworkManager connection UUIDs.
+  # DO NOT change: would regenerate UUIDs and create duplicate NM profiles.
+  nmNamespace = "e6b4b7a5-9df1-4c1d-9d3f-2c8d0a9f0c2a";
+
+  # Package the external script (keeps Nix strings small; LSP stays sane)
+  nmProfilesScript = pkgs.writeShellApplication {
+    name = "snowman-networkmanager-profiles";
+    runtimeInputs = with pkgs; [ coreutils util-linux systemd ];
+    text = builtins.readFile ../scripts/snowman-networkmanager-profiles.sh;
+  };
+
+  # TSV lines: netName<TAB>ssid<TAB>pskFileOrEmpty
+  nmNetList = lib.concatStringsSep "\n" (map (netName:
+    let
+      net = networksCfg.${netName};
+      ssid = net.ssid;
+
+      secretName = "wifi-${netName}-password";
+      secretPath = if net ? passwordSecret then
+        config.sops.secrets.${secretName}.path
+      else
+        "";
+    in "${netName}	${ssid}	${toString secretPath}") wifiNetworks);
+
 in {
   config = lib.mkMerge [
-    # --- Static Wi-Fi mode (wpa_supplicant + ext password) --------------------
+    # -------------------------------------------------------------------------
+    # Static Wi-Fi mode (wpa_supplicant + ext:psk)
+    # -------------------------------------------------------------------------
     (lib.mkIf (hasHost && wifi != null && wifi.mode == "static-wifi") {
       networking.useDHCP = wifi.useDHCP or true;
 
@@ -41,17 +71,48 @@ in {
       networking.wireless.interfaces = [ wifiInterface ];
 
       networking.wireless.networks = mkWirelessNetworks wifi;
+
+      networking.firewall = {
+        enable = lib.mkDefault true;
+        trustedInterfaces = lib.mkDefault [ wifiInterface ];
+        checkReversePath = lib.mkDefault "loose";
+        allowPing = lib.mkDefault true;
+      };
     })
 
-    # --- Roaming mode via NetworkManager --------------------------------------
-    (lib.mkIf (hasHost && wifi != null && wifi.mode == "roaming") {
-      networking.useDHCP = lib.mkForce false;
-      networking.networkmanager.enable = true;
-      networking.wireless.enable = false;
-    })
+    # -------------------------------------------------------------------------
+    # Roaming Wi-Fi via NetworkManager (+ optional provisioning)
+    # -------------------------------------------------------------------------
+    (lib.mkIf isRoaming (lib.mkMerge [
+      {
+        networking.useDHCP = lib.mkForce false;
+        networking.networkmanager.enable = true;
+        networking.wireless.enable = false;
+      }
 
-    # --- Generate /run/secrets/wireless.conf for ext:psk_<net> ---------------
-    # Only for networks this host actually uses AND that have passwordSecret.
+      (lib.mkIf roamingHasNetworks {
+        system.activationScripts."snowman-networkmanager-profiles" = ''
+          set -euo pipefail
+
+          listFile="$(mktemp)"
+          trap 'rm -f "$listFile"' EXIT
+
+          cat > "$listFile" <<'EOF'
+          ${nmNetList}
+          EOF
+
+          ${nmProfilesScript}/bin/snowman-networkmanager-profiles \
+            ${lib.escapeShellArg nmNamespace} \
+            /etc/NetworkManager/system-connections \
+            "$listFile"
+        '';
+      })
+    ]))
+
+    # -------------------------------------------------------------------------
+    # Generate /run/secrets/wireless.conf for ext:psk_<net>
+    # (used by static-wifi)
+    # -------------------------------------------------------------------------
     (lib.mkIf (hasHost && wifi != null && wifiNetworksWithPassword != { }) {
       networking.wireless.secretsFile = "/run/secrets/wireless.conf";
 
@@ -70,7 +131,6 @@ in {
             secretName = "wifi-${netName}-password";
             secretPath = config.sops.secrets.${secretName}.path;
           in ''
-            # Secret for Wi-Fi network ${netName}
             if [ -r ${lib.escapeShellArg secretPath} ]; then
               echo "psk_${netName}=$(cat ${
                 lib.escapeShellArg secretPath
@@ -82,21 +142,12 @@ in {
 
         chown root:root "$outfile"
         chmod 0400 "$outfile"
-
-        echo "[snowman] Created /run/secrets/wireless.conf"
       '';
     })
 
-    # --- Wi-Fi aware firewall defaults ---------------------------------------
-    (lib.mkIf (hasHost && wifi != null && wifi.mode == "static-wifi") {
-      networking.firewall = {
-        enable = lib.mkDefault true;
-        trustedInterfaces = lib.mkDefault [ wifiInterface ];
-        checkReversePath = lib.mkDefault "loose";
-        allowPing = lib.mkDefault true;
-      };
-    })
-
+    # -------------------------------------------------------------------------
+    # Assertions
+    # -------------------------------------------------------------------------
     {
       assertions = [
         {
@@ -107,7 +158,7 @@ in {
           '';
         }
         {
-          assertion = !(hasHost && wifi != null && wifi.mode == "static-wifi")
+          assertion = !(hasHost && wifi != null)
             || lib.all (netName: builtins.hasAttr netName networksCfg)
             (wifi.networks or [ ]);
           message =
