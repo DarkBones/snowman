@@ -1,5 +1,5 @@
 set -eu
-set -o pipefailrng
+set -o pipefail
 
 nmNamespace="$1"
 connectionsDir="$2"
