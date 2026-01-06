@@ -1,4 +1,4 @@
-set -euo pipefail
+set -euo pipefailrng
 
 nmNamespace="$1"
 connectionsDir="$2"
@@ -17,7 +17,8 @@ write_conn() {
     local pskFile="$3"
 
     local file="$connectionsDir/snowman-$netName.nmconnection"
-    local uuid="$("$uuidgen_bin" --sha1 --namespace "$nmNamespace" --name "$netName")"
+    local uuid
+    uuid="$("$uuidgen_bin" --sha1 --namespace "$nmNamespace" --name "$netName")"
 
     local security_block=""
     if [[ -n "$pskFile" && -r "$pskFile" ]]; then
