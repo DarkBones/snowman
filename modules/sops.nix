@@ -5,7 +5,8 @@ let
   host = if hasHost then inv.hosts.${currentHost} else { };
   hostUsers = if hasHost then host.users else [ ];
 
-  usbCfg = host.bootstrap.usb or { enable = false; };
+  usbCfg = ((host.bootstrap or { }).usb or { });
+  usbConfigured = usbCfg.enable or false;
 
   # Users that actually have a `secrets.sopsFile` configured
   usersWithSecrets =
@@ -13,7 +14,6 @@ let
     inv.users;
 
   isRotated = config.snowman.isRotated;
-  usbConfigured = host.bootstrap.usb.enable or false;
   usbMode = usbConfigured && (!isRotated);
 
   mkSecretsForUser = userName:

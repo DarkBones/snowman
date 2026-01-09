@@ -10,8 +10,7 @@
   };
 
   outputs = inputs@{ self, nixpkgs, ... }: {
-
-    nixosModules.default = ./modules;
+    nixosModules.default = ./modules/default.nix;
     homeModules.default = ./modules/home;
 
     templates.default = {

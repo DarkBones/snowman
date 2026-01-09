@@ -5,20 +5,36 @@ let
   here = ./.;
   entries = builtins.readDir here;
 
+  excluded = [
+    "default.nix"
+    "engine-inputs.nix"
+    "bootstrap-usb.nix"
+    "host-secrets-from-inventory.nix"
+    "sops.nix"
+    "compat.nix"
+  ];
+
   nixFiles = builtins.filter (name:
-    entries.${name} == "regular" && lib.hasSuffix ".nix" name && name
-    != "default.nix") (builtins.attrNames entries);
+    entries.${name} == "regular" && lib.hasSuffix ".nix" name
+    && !(lib.elem name excluded)) (builtins.attrNames entries);
 
   moduleFiles = map (name: here + "/${name}") nixFiles;
 
 in {
-  imports = [ ./hardware ./home/from-inventory.nix ./users ./compat.nix ]
-    ++ moduleFiles;
+  imports = [
+    ./engine-inputs.nix
+    ./bootstrap-usb.nix
+    ./host-secrets-from-inventory.nix
+    ./sops.nix
 
-  config = lib.mkIf hasHost {
-    home-manager.extraSpecialArgs = { inherit pkgsUnstable dotfilesSources; };
+    ./hardware
+    ./home/from-inventory.nix
+    ./users
+    ./compat.nix
+  ] ++ moduleFiles;
+} // lib.optionalAttrs hasHost {
+  home-manager.extraSpecialArgs = { inherit pkgsUnstable dotfilesSources; };
 
-    environment.systemPackages = (with pkgs; [ git age ])
-      ++ [ pkgsUnstable.ssh-to-age ];
-  };
+  environment.systemPackages = (with pkgs; [ git age ])
+    ++ [ pkgsUnstable.ssh-to-age ];
 }

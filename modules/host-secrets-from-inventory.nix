@@ -14,28 +14,17 @@ let
   items = if secretsCfg == null then { } else (secretsCfg.items or { });
 
   mkSecret = name: spec: {
-    # What sops-nix needs:
     sopsFile = secretsCfg.sopsFile;
     key = spec.key or name;
     format = "yaml";
-
     owner = spec.owner or "root";
     group = spec.group or "root";
     mode = spec.mode or "0400";
   };
 
   hostSecrets = if secretsCfg == null then { } else lib.mapAttrs mkSecret items;
-
 in {
-  options.snowman.hostSecrets = lib.mkOption {
-    type = lib.types.attrsOf lib.types.attrs;
-    default = { };
-    description = "Per-host secrets derived from inventory (for sops-nix).";
-    internal = true;
-  };
-
   config = lib.mkMerge [
-    # Only set anything if host is known AND secrets are configured
     (lib.mkIf (hasHost && secretsCfg != null) {
       snowman.hostSecrets = hostSecrets;
     })

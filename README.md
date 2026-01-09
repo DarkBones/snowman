@@ -31,7 +31,7 @@ cd my-personal-config
 
 This creates your own fresh **Snowman body repo** (configuration directory) powered by the Snowman base.
 
------
+---
 
 # 🧭 Step 2 — Configure Your System (Inventory First)
 
@@ -56,6 +56,19 @@ hosts = { ... };
 users = { ... };
 ```
 
+**Important:** Each host must set `hosts.<name>.hostname`.
+
+Snowman requires the hostname to be defined explicitly in the inventory.
+
+Example:
+
+```nix
+hosts.my-laptop = {
+  hostname = "my-laptop";
+  # ...
+};
+```
+
 *(See the "Deep Dive" section below for all available options.)*
 
 ## 2. Choose a login method for each user (required)
@@ -64,8 +77,8 @@ For **every user listed in `hosts.<host>.users`**, Snowman enforces:
 
 > Each user must provide at least one login method:
 >
->   * an **SSH key** (`sshPubKeys` / `sshPubKeyFile` / `sshPubKeyFiles`), **or**
->   * a **password** (`initialPassword` or sops secrets + `userPasswordHashKey`).
+> * an **SSH key** (`sshPubKeys` / `sshPubKeyFile` / `sshPubKeyFiles`), **or**
+> * a **password** (`initialPassword` or sops secrets + `userPasswordHashKey`).
 
 Concretely, in `users.<name>` you can:
 
@@ -127,10 +140,11 @@ You can combine keys and passwords. Snowman only enforces that at least one meth
 
 Depending on what you actually need, you can optionally:
 
-  * Put your user’s SSH public key(s) into: `users/keys/<name>.pub`
-  * Create **per-host** secrets: `hosts/secrets/<host>_secrets.yml`
-  * Create **per-user** secrets: `users/secrets/<name>_secrets.yml`
-  * Update `.sops.yaml` with *your* Age public keys.
+* Put your user’s SSH public key(s) into: `users/keys/<name>.pub`
+* Create **per-host** secrets: `hosts/secrets/<host>_secrets.yml`
+* Create **per-user** secrets: `users/secrets/<name>_secrets.yml`
+* Create **network secrets** (for inventory-driven Wi-Fi): `networks/secrets.yml`
+* Update `.sops.yaml` with *your* Age public keys.
 
 ## 4. Commit your repo
 
@@ -142,23 +156,23 @@ git push
 
 Your **body repo** is now ready to be used on a real machine.
 
------
+---
 
 # 🏗️ Where to Put Your Configuration
 
 Snowman is layered. Depending on what you are trying to configure, you will edit one of three things:
 
-  * The **base** (this Snowman repo) — only if you are developing Snowman itself.
-  * Your **body repo** (personal config) — where hosts, users, roles, and wiring live.
-  * Your **head repo** (dotfiles) — where your actual editor/shell/tool configs live.
+* The **base** (this Snowman repo) — only if you are developing Snowman itself.
+* Your **body repo** (personal config) — where hosts, users, roles, and wiring live.
+* Your **head repo** (dotfiles) — where your actual editor/shell/tool configs live.
 
 Within the **body repo**, you usually touch one of three areas:
 
-1.  **`inventory.nix` (The Blueprint):** Define hosts, users, secrets, and Wi-Fi.
-2.  **`hosts/<host-name>.nix` (The System Config):** Machine-specific services, timezones, and NixOS options.
-3.  **`home/roles/*.nix` (The User Config):** Reusable user environments (Home Manager).
+1. **`inventory.nix` (The Blueprint):** Define hosts, users, secrets, and Wi-Fi.
+2. **`hosts/<host-name>.nix` (The System Config):** Machine-specific services, timezones, and NixOS options.
+3. **`home/roles/*.nix` (The User Config):** Reusable user environments (Home Manager).
 
------
+---
 
 # 🖥️ Step 3 — Install NixOS Normally, Then Hand Control to Snowman
 
@@ -170,11 +184,12 @@ You do **not** run Snowman from the live ISO.
 
 ## 1. Install NixOS with the graphical installer
 
-1.  Boot the official NixOS ISO.
-2.  Install normally.
-      * **Partitioning:** "Erase Disk" is recommended. If you choose **"Install Alongside"** (Dual Boot), Snowman will work, but it will take over the bootloader configuration (`systemd-boot`).
-3.  **(Recommended)** Ensure `networking.networkmanager.enable = true;` in the generated config so you have Wi-Fi (`nmtui`) after reboot.
-4.  **Reboot** into your new, generic NixOS installation.
+1. Boot the official NixOS ISO.
+2. Install normally.
+
+   * **Partitioning:** "Erase Disk" is recommended. If you choose **"Install Alongside"** (Dual Boot), Snowman will work. Snowman does **not** touch your bootloader unless you explicitly opt in via `hosts.<host>.hardware.boot.firmware` (see Deep Dive).
+3. **(Recommended)** Ensure `networking.networkmanager.enable = true;` in the generated config so you have Wi-Fi (`nmtui`) after reboot.
+4. **Reboot** into your new, generic NixOS installation.
 
 ## 2. Clone your Snowman config/body repo on the installed system
 
@@ -191,13 +206,13 @@ From now on, **all commands are run inside this body repo**, as that user.
 
 ## 3. Import the hardware configuration (CRITICAL)
 
-**Do not skip this step.** Snowman must learn your disk layout (UUIDs) before it builds the bootloader.
+**Do not skip this step.** Snowman must learn your disk layout (UUIDs) before it builds a working system config.
 
 ```bash
 ./bin/snowman-import-hardware my-laptop
 ```
 
-This copies the system-generated `/etc/nixos/hardware-configuration.nix` to `hosts/my-laptop-hardware-configuration.nix`.
+This copies the system-generated `/etc/nixos/hardware-configuration.nix` to `hosts/<hostname>-hardware-configuration.nix` (where `<hostname>` is `hosts.<host>.hostname` from your inventory).
 
 ## 4. Switch the machine to your Snowman config/body
 
@@ -207,7 +222,7 @@ sudo nixos-rebuild switch --flake .#my-laptop
 
 This **replaces** the installer’s configuration with your Snowman-driven one.
 
------
+---
 
 # 🛠️ Workflows: Dotfiles (Dev vs. Prod)
 
@@ -219,7 +234,10 @@ Snowman solves this with the `snowman-dotfiles` command.
 
 ### Prod Mode (Default)
 
-In this mode, your dotfiles are fetched from your Git host (flake input), locked, and reproducible. They live in the Nix Store.
+In this mode, dotfiles are managed *without reading any environment variables*. How dotfiles are sourced depends on your dotfiles role configuration:
+
+* If `roles.dotfiles` resolves a pinned source in `dotfilesSources` (flake input), links are created from the Nix store.
+* Otherwise, Snowman falls back to Git mode (clone/pull at activation time) if `roles.dotfiles.repo` is set.
 
 ```bash
 snowman-dotfiles prod
@@ -227,15 +245,15 @@ snowman-dotfiles prod
 
 ### Dev Mode
 
-In this mode, Snowman tells Home Manager to **ignore** your dotfiles configuration. Instead, it creates a mutable symlink from your local clone (`~/Developer/dotfiles`) to `~/.config/...`.
+In this mode, Home Manager creates *mutable* symlinks to your local dotfiles checkout, controlled by the `SNOWMAN_DOTFILES_MODE=dev` environment variable (requires `--impure` on rebuild).
 
 ```bash
 snowman-dotfiles dev
 ```
 
-You can now edit your Neovim config in `~/Developer/dotfiles`, restart Neovim, and see changes instantly. No rebuild required.
+You can now edit your config in your local dotfiles repo and see changes instantly (restart the app/editor as needed). No rebuild required for edits themselves.
 
------
+---
 
 # 🔄 Step 4 — Deploy Updates (From Any Machine)
 
@@ -248,7 +266,7 @@ nix run nixpkgs#nixos-rebuild -- switch \
   --use-remote-sudo
 ```
 
------
+---
 
 # 📖 Reference & Deep Dive
 
@@ -273,12 +291,13 @@ Each entry under `hosts` is a machine:
 ```nix
 hosts = {
   my-laptop = {
+    hostname = "my-laptop";
     system = "x86_64-linux";
     users  = [ "alice" ];
 
-    # Optional: Advanced hardware/boot control
+    # Optional: Advanced hardware/boot control (explicit opt-in)
     hardware.boot.firmware = "efi"; # "bios", "efi", "raspberry-pi", or "none"
-    
+
     # Optional: Enable compatibility for unpatched binaries (Mason/VSCode)
     compatibility = true;
 
@@ -288,8 +307,19 @@ hosts = {
 };
 ```
 
-  * `compatibility = true`: Enables `nix-ld`, allowing standard Linux binaries (like VSCode Servers or Mason LSPs) to run without patching.
-  * `availableRoles`: If set, only user roles appearing in this list are applied. This lets you reuse one user definition across many hosts (e.g., enable "gaming" for the user, but filter it out on the work laptop).
+* `compatibility = true`: Enables `nix-ld`, allowing standard Linux binaries (like VSCode Servers or Mason LSPs) to run without patching.
+* `availableRoles`: If set, only user roles appearing in this list are applied. This lets you reuse one user definition across many hosts (e.g., enable "gaming" for the user, but filter it out on the work laptop).
+
+#### Boot control
+
+Snowman only configures bootloader behavior if you set `hosts.<host>.hardware.boot.firmware`.
+
+* `"efi"`: enables `systemd-boot` and allows touching EFI variables
+* `"bios"`: enables GRUB (device defaults to `/dev/vda` unless `hardware.bootDevice` is set)
+* `"raspberry-pi"`: enables generic extlinux
+* `"none"`: explicitly disables both GRUB and systemd-boot
+
+If you do **not** set `hardware.boot.firmware`, Snowman will not make bootloader decisions for you.
 
 ### Users
 
@@ -314,40 +344,44 @@ Snowman allows two modes for networking.
 If you do not define a `wifi` block, Snowman leaves networking alone. You use `nmtui` or `nmcli` manually.
 
 **Mode B: Declarative (Inventory-Driven)**
-Useful for headless machines (Raspberry Pi).
+Useful for headless machines (Raspberry Pi) or for provisioning NetworkManager profiles.
 
-1.  Define networks globally in `inventory.nix`:
-    ```nix
-    networks = {
-      home = { ssid = "my-ssid"; passwordSecret = "home/password"; };
-    };
-    ```
-2.  Enable on the host:
-    ```nix
-    hosts.rpi4.wifi = {
-      mode = "static-wifi"; # uses wpa_supplicant + sops
-      networks = [ "home" ];
-    };
-    ```
+1. Define networks globally in `inventory.nix`:
+
+   ```nix
+   networks = {
+     home = { ssid = "my-ssid"; passwordSecret = "home/password"; };
+   };
+   ```
+2. Enable on the host:
+
+   ```nix
+   hosts.rpi4.wifi = {
+     mode = "static-wifi"; # uses wpa_supplicant + sops (ext:psk_*)
+     networks = [ "home" ];
+   };
+   ```
+
+For interactive laptops, `mode = "roaming"` enables NetworkManager, and (optionally) Snowman can provision profiles if you also set `wifi.networks`.
 
 ## 3. SSH Keys vs. Secrets
 
-  * **`users/keys/*.pub`**: These are **public** keys used for logging *into* the machine (`authorized_keys`). They are not encrypted.
-  * **`users/secrets/*.yml`**: These are **private** data (password hashes, tokens) encrypted with **sops**.
+* **`users/keys/*.pub`**: These are **public** keys used for logging *into* the machine (`authorized_keys`). They are not encrypted.
+* **`users/secrets/*.yml`**: These are **private** data (password hashes, tokens) encrypted with **sops**.
 
 ## 4. Authentication Matrix
 
 Snowman configures OpenSSH to be **publickey-only** by default.
 
-| SSH keys configured? | Password configured? | SSH login?                  | Local TTY login?                      |
-| -------------------- | -------------------- | --------------------------- | ------------------------------------  |
-| ✅ Yes               | ❌ No                | ✅ Yes (key)                | ✅ Yes (if allowed by NixOS defaults) |
-| ❌ No                | ✅ Yes               | ❌ No (key-only)            | ✅ Yes                                |
-| ✅ Yes               | ✅ Yes               | ✅ Yes (key)                | ✅ Yes                                |
+| SSH keys configured? | Password configured? | SSH login?      | Local TTY login?                     |
+| -------------------- | -------------------- | --------------- | ------------------------------------ |
+| ✅ Yes                | ❌ No                 | ✅ Yes (key)     | ✅ Yes (if allowed by NixOS defaults) |
+| ❌ No                 | ✅ Yes                | ❌ No (key-only) | ✅ Yes                                |
+| ✅ Yes                | ✅ Yes                | ✅ Yes (key)     | ✅ Yes                                |
 
 To enable password-based SSH (not recommended), override `services.openssh.settings.PasswordAuthentication = true;` in your `hosts/<name>.nix` file.
 
------
+---
 
 # 🔐 Secrets Management (Sops & Age)
 
@@ -355,9 +389,9 @@ All secret handling happens **inside your personal config/body repo**.
 
 Snowman uses:
 
-  * **sops** to encrypt/decrypt files
-  * **sops-nix** to expose them to Nix at build time
-  * **Age keys** as recipients
+* **sops** to encrypt/decrypt files
+* **sops-nix** to expose them to Nix at build time
+* **Age keys** as recipients
 
 ## Per-user secrets
 
@@ -369,13 +403,23 @@ Used for password hashes, API tokens, etc.
 
 Example: `hosts/secrets/my-laptop_secrets.yml`
 Mapped in inventory via: `hosts.my-laptop.secrets`.
-Used for WireGuard keys, Wi-Fi PSKs, host-specific tokens.
+Used for WireGuard keys, host-specific tokens, etc.
 
------
+## Network secrets (optional, for inventory-driven Wi-Fi)
+
+Example: `networks/secrets.yml`
+Used for Wi-Fi PSKs referenced by `inventory.networks.<name>.passwordSecret`.
+
+---
 
 # 💾 Optional: USB Bootstrap Age Key (“Snowman Key”)
 
-This allows a **brand-new machine** to decrypt your secrets *before* it has its own Age key enrolled.
+This allows a **brand-new machine** to decrypt your secrets *before* it has its own enrolled host key in `.sops.yaml`.
+
+Snowman will only use the USB key if:
+
+* `hosts.<host>.bootstrap.usb.enable = true`, **and**
+* the host is **not** already present in `.sops.yaml` (Snowman detects this and treats it as “rotated”)
 
 ## 1. Generate a Snowman bootstrap key
 
@@ -387,8 +431,8 @@ Put the *public key* into your `.sops.yaml`.
 
 ## 2. Prepare the USB
 
-1.  Format USB with label `SNOWMANKEY`
-2.  Copy `snowman.key` (private key) to the root
+1. Format USB with label `SNOWMANKEY`
+2. Copy `snowman.key` (private key) to the root
 
 ## 3. Enable in inventory
 
@@ -402,39 +446,42 @@ bootstrap.usb = {
 };
 ```
 
-When enabled, Snowman attempts to mount the USB and import the key during activation.
+When enabled (and not rotated yet), Snowman mounts the USB and copies the key into `/var/lib/sops-nix/age.key` during activation.
 
-  * **Success:** Secrets are decryptable immediately.
-  * **Missing USB:** The script logs a warning and continues boot (failsafe). You can plug it in and run the import manually later if needed.
+* **Success:** Secrets are decryptable immediately.
+* **Missing USB:** The script logs a warning and continues.
 
-## 4. Turn it off after first boot
+## 4. Turn it off after rotation
 
-After installation:
+After installation, once the host is enrolled in `.sops.yaml` (i.e. Snowman considers it “rotated”), USB mode becomes unnecessary.
 
-1.  Convert host SSH key to Age:
+A typical flow:
 
-    ```bash
-    nix run nixpkgs#ssh-to-age -- /etc/ssh/ssh_host_ed25519_key.pub
-    ```
+1. Convert host SSH key to Age:
 
-2.  Add the new Age key to `.sops.yaml`
+   ```bash
+   nix run nixpkgs#ssh-to-age -- -i /etc/ssh/ssh_host_ed25519_key.pub
+   ```
 
-3.  Re-encrypt secrets:
+2. Add the resulting recipient to `.sops.yaml` (using a host anchor like `&<host>`)
 
-    ```bash
-    sops updatekeys users/secrets/*.yml
-    sops updatekeys hosts/secrets/*.yml
-    ```
+3. Re-encrypt secrets:
 
-4.  Set:
+   ```bash
+   sops updatekeys users/secrets/*.yml
+   sops updatekeys hosts/secrets/*.yml
+   sops updatekeys networks/secrets.yml
+   ```
 
-    ```nix
-    bootstrap.usb.enable = false;
-    ```
+4. Set:
 
-Now the machine no longer needs the USB. From this point on, your sops files are encrypted to the host's SSH key (converted to an Age recipient), and Snowman uses that host key for decryption. No USB is required anymore.
+   ```nix
+   bootstrap.usb.enable = false;
+   ```
 
------
+From this point on, `sops-nix` will use `generateKey = true` and derive the age identity from the host’s SSH key automatically (no USB required).
+
+---
 
 # 🧑‍💻 For Maintainers (Developing the Snowman Base Itself)
 
@@ -442,9 +489,9 @@ If you are **editing Snowman's modules** (this repo, the **base**) and want to t
 
 ## 1. Use two separate repos
 
-  * `~/Developer/snowman/` — the **base** (this repo)
-  * `~/Developer/snowman-config/` — your actual **body** configuration (made from the template)
-  * `~/Developer/dotfiles/` — your **head** (optional, but nicely thematic)
+* `~/Developer/snowman/` — the **base** (this repo)
+* `~/Developer/snowman-config/` — your actual **body** configuration (made from the template)
+* `~/Developer/dotfiles/` — your **head** (optional, but nicely thematic)
 
 ## 2. Temporarily point your body repo to your local Snowman base
 
