@@ -414,7 +414,7 @@ After installation:
 1.  Convert host SSH key to Age:
 
     ```bash
-    nix run nixpkgs#ssh-to-age -- /etc/ssh/ssh_host_ed25519_key.pub
+    nix run nixpkgs#ssh-to-age -- -i /etc/ssh/ssh_host_ed25519_key.pub
     ```
 
 2.  Add the new Age key to `.sops.yaml`
