@@ -7,30 +7,25 @@ let
   fw = boot.firmware or null;
 in {
   config = lib.mkMerge [
-    # If the user provides *no* hardware block, disable ALL bootloaders.
-    (lib.mkIf (!hasHw) {
-      boot.loader.grub.enable = lib.mkForce false;
-      boot.loader.systemd-boot.enable = lib.mkForce false;
-    })
-
-    # If firmware = "none", also disable bootloaders.
+    # Explicit opt-out
     (lib.mkIf (fw == "none") {
       boot.loader.grub.enable = lib.mkForce false;
       boot.loader.systemd-boot.enable = lib.mkForce false;
     })
 
-    # Normal BIOS/EFI handling...
+    # Explicit BIOS
     (lib.mkIf (fw == "bios") {
       boot.loader.grub.enable = true;
       boot.loader.grub.devices = [ (host.hardware.bootDevice or "/dev/vda") ];
     })
 
+    # Explicit EFI
     (lib.mkIf (fw == "efi") {
       boot.loader.systemd-boot.enable = true;
       boot.loader.efi.canTouchEfiVariables = true;
     })
 
-    # Raspberry Pi specific hardening
+    # Explicit Raspberry Pi
     (lib.mkIf (fw == "raspberry-pi") {
       boot.loader.grub.enable = false;
       boot.loader.generic-extlinux-compatible.enable = true;
