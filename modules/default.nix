@@ -1,6 +1,4 @@
-{ lib, pkgs, pkgsUnstable, dotfilesSources ? { }, inv, currentHost
-, sops-nix ? null, sopsConfigPath ? null, networkSecretsPath ? null
-, extraHomeImports ? [ ], inputs ? null, config, ... }:
+{ lib, pkgs, pkgsUnstable, dotfilesSources, inv, currentHost, ... }:
 let
   hasHost = builtins.hasAttr currentHost inv.hosts;
 
@@ -16,13 +14,9 @@ let
 in {
   imports = [ ./hardware ./home/from-inventory.nix ./users ./compat.nix ]
     ++ moduleFiles;
+} // lib.optionalAttrs hasHost {
+  home-manager.extraSpecialArgs = { inherit pkgsUnstable dotfilesSources; };
 
-  config = lib.mkIf hasHost {
-    config = lib.mkIf hasHost {
-      home-manager.extraSpecialArgs = { inherit pkgsUnstable dotfilesSources; };
-
-      environment.systemPackages = (with pkgs; [ git age ])
-        ++ [ pkgsUnstable.ssh-to-age ];
-    };
-  };
+  environment.systemPackages = (with pkgs; [ git age ])
+    ++ [ pkgsUnstable.ssh-to-age ];
 }
