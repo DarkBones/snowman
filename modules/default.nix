@@ -5,10 +5,18 @@ let
   here = ./.;
   entries = builtins.readDir here;
 
+  excluded = [
+    "default.nix"
+    "engine-inputs.nix"
+    "bootstrap-usb.nix"
+    "host-secrets-from-inventory.nix"
+    "sops.nix"
+    "compat.nix"
+  ];
+
   nixFiles = builtins.filter (name:
-    entries.${name} == "regular" && lib.hasSuffix ".nix" name && name
-    != "default.nix" && name != "engine-inputs.nix" && name
-    != "bootstrap-usb.nix" && name != "sops.nix") (builtins.attrNames entries);
+    entries.${name} == "regular" && lib.hasSuffix ".nix" name
+    && !(lib.elem name excluded)) (builtins.attrNames entries);
 
   moduleFiles = map (name: here + "/${name}") nixFiles;
 
