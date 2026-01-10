@@ -2,37 +2,41 @@
 let
   cfg = config.roles.dotfiles;
 
-  hasSourceKey = cfg ? sourceKey && cfg.sourceKey != null
-    && builtins.hasAttr cfg.sourceKey dotfilesSources;
+  hasSourceKey =
+    (cfg ? sourceKey) &&
+    (cfg.sourceKey != null) &&
+    builtins.hasAttr cfg.sourceKey dotfilesSources;
 
-  sourcePath = if hasSourceKey then
-    builtins.getAttr cfg.sourceKey dotfilesSources
-  else
-    null;
+  sourcePath =
+    if hasSourceKey then builtins.getAttr cfg.sourceKey dotfilesSources else null;
 
-  # Heuristic: detect SSH-style git remotes.
-  # Covers:
+  # Detect SSH-style git remotes:
   #   - ssh://host/path
   #   - user@host:org/repo.git   (incl. git@github.com:org/repo.git)
-  isSshRemote = cfg.repo != "" && (lib.hasPrefix "ssh://" cfg.repo
-    || (builtins.match "^[^@]+@[^:]+:.*" cfg.repo != null));
+  isSshRemote =
+    cfg.repo != "" &&
+    (lib.hasPrefix "ssh://" cfg.repo || (builtins.match "^[^@]+@[^:]+:.*" cfg.repo != null));
+
+  # Emit link operations as shell lines with safe quoting.
+  mkLinkLines = repoVar: lib.concatStringsSep "\n" (lib.mapAttrsToList (target: src: ''
+    echo "[dotfiles] Linking ${target} -> ${src}"
+    link_atomic ${lib.escapeShellArg target} ${lib.escapeShellArg src} ${repoVar}
+  '') cfg.linkMap);
 
 in {
   options.roles.dotfiles = {
     enable = lib.mkEnableOption "Dotfiles role";
 
-    # Reproducible mode: look up this key in dotfilesSources
     sourceKey = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
       default = config.home.username;
       description = ''
-        Optional key into snowman/dotfilesSources (passed via extraSpecialArgs).
+        Optional key into dotfilesSources (passed via extraSpecialArgs).
         If set and found, the repo is taken from the Nix store (flake input),
         and no git clone happens at activation time.
       '';
     };
 
-    # Git mode: pull dotfiles at activation time (no locks, not reproducible)
     repo = lib.mkOption {
       type = lib.types.str;
       default = "";
@@ -65,26 +69,20 @@ in {
   };
 
   config = lib.mkIf cfg.enable (lib.mkMerge [
-
     # -------------------------------------------------------------------------
-    # Shared: tooling + dependency declaration
+    # Shared: tooling + assertions
     # -------------------------------------------------------------------------
     {
-      # Tooling dotfiles needs in git mode
-      home.packages = with pkgs; [ git openssh inetutils ];
+      home.packages = with pkgs; [ git openssh inetutils coreutils ];
 
       # Dotfiles may require SSH; default it on, but allow explicit override.
       roles.ssh.enable = lib.mkDefault true;
 
       assertions = [{
         assertion =
-          # pinned mode -> no ssh needed
           hasSourceKey
-          # git mode not configured -> no ssh needed
           || cfg.repo == ""
-          # git mode with https -> ssh role optional
           || (!isSshRemote)
-          # git mode with ssh -> ssh role must be enabled
           || (config.roles.ssh.enable or false);
         message = ''
           roles.dotfiles is configured to use an SSH git remote (${cfg.repo}),
@@ -98,7 +96,7 @@ in {
     }
 
     # -------------------------------------------------------------------------
-    # Reproducible mode: use flake input (store path)
+    # Pinned mode: use flake input (store path)
     # -------------------------------------------------------------------------
     (lib.mkIf hasSourceKey {
       home.activation.dotfilesSync =
@@ -114,18 +112,41 @@ in {
 
           echo "[dotfiles] Using pinned dotfiles from $REPO_PATH (flake input)."
 
-          # Symlink targets from linkMap
-          ${lib.concatStringsSep "\n" (lib.mapAttrsToList (target: src: ''
-            echo "[dotfiles] Linking ${target} -> ${src}"
-            mkdir -p "$(dirname "$HOME/${target}")"
-            rm -rf "$HOME/${target}"
-            ln -s "$REPO_PATH/${src}" "$HOME/${target}"
-          '') cfg.linkMap)}
+          link_atomic() {
+            # Arguments:
+            #   1 = target relative path
+            #   2 = source relative path inside repo
+            #   3 = repo root variable name (string, e.g. "REPO_PATH")
+            local target_rel="$1"
+            local src_rel="$2"
+            local repo_var="$3"
+
+            local repo_root
+            repo_root="$(eval echo "\$$repo_var")"
+
+            local target="$HOME/$target_rel"
+            local source="$repo_root/$src_rel"
+            local tmp="$target.hm-new"
+            local backup="$target.hm-bak.$(date +%s)"
+
+            mkdir -p "$(dirname "$target")"
+
+            # Move aside existing target (best-effort)
+            if [ -e "$target" ] || [ -L "$target" ]; then
+              mv -Tf "$target" "$backup" 2>/dev/null || true
+            fi
+
+            rm -rf "$tmp"
+            ln -s "$source" "$tmp"
+            mv -Tf "$tmp" "$target"
+          }
+
+          ${mkLinkLines "REPO_PATH"}
         '';
     })
 
     # -------------------------------------------------------------------------
-    # Git mode: fall back to git clone/pull at activation time
+    # Git mode: clone/pull at activation time
     # -------------------------------------------------------------------------
     (lib.mkIf (!hasSourceKey) {
       programs.ssh.enable = true;
@@ -134,7 +155,7 @@ in {
         lib.hm.dag.entryAfter [ "writeBoundary" ] ''
           set -euo pipefail
 
-          export PATH="${pkgs.openssh}/bin:${pkgs.git}/bin:$PATH"
+          export PATH="${pkgs.openssh}/bin:${pkgs.git}/bin:${pkgs.coreutils}/bin:$PATH"
 
           REPO=${lib.escapeShellArg cfg.repo}
           BRANCH=${lib.escapeShellArg cfg.branch}
@@ -147,7 +168,6 @@ in {
 
           git="${pkgs.git}/bin/git"
 
-          # Work in $HOME/<dir>
           DIR_REAL="$HOME/$DIR"
           mkdir -p "$DIR_REAL"
 
@@ -162,9 +182,7 @@ in {
             fi
 
             if [ ${toString (cfg.sparse != [ ])} = "1" ]; then
-              "$git" -C "$DIR_REAL" sparse-checkout set ${
-                lib.escapeShellArgs cfg.sparse
-              }
+              "$git" -C "$DIR_REAL" sparse-checkout set ${lib.escapeShellArgs cfg.sparse}
             fi
 
             "$git" -C "$DIR_REAL" switch "$BRANCH" || \
@@ -188,13 +206,33 @@ in {
             exit 0
           fi
 
-          # Symlink targets from linkMap
-          ${lib.concatStringsSep "\n" (lib.mapAttrsToList (target: src: ''
-            echo "[dotfiles] Linking ${target} -> ${src}"
-            mkdir -p "$(dirname "$HOME/${target}")"
-            rm -rf "$HOME/${target}"
-            ln -s "$DIR_REAL/${src}" "$HOME/${target}"
-          '') cfg.linkMap)}
+          echo "[dotfiles] Using git dotfiles repo at $DIR_REAL"
+
+          link_atomic() {
+            local target_rel="$1"
+            local src_rel="$2"
+            local repo_var="$3"
+
+            local repo_root
+            repo_root="$(eval echo "\$$repo_var")"
+
+            local target="$HOME/$target_rel"
+            local source="$repo_root/$src_rel"
+            local tmp="$target.hm-new"
+            local backup="$target.hm-bak.$(date +%s)"
+
+            mkdir -p "$(dirname "$target")"
+
+            if [ -e "$target" ] || [ -L "$target" ]; then
+              mv -Tf "$target" "$backup" 2>/dev/null || true
+            fi
+
+            rm -rf "$tmp"
+            ln -s "$source" "$tmp"
+            mv -Tf "$tmp" "$target"
+          }
+
+          ${mkLinkLines "DIR_REAL"}
         '';
     })
   ]);

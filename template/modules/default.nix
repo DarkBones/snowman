@@ -12,13 +12,12 @@ let
   moduleFiles = map (name: here + "/${name}") nixFiles;
 
 in {
-  # We import ./snowman-dotfiles.nix automatically via moduleFiles because it's in this folder
   imports = [ ./hardware ./home/from-inventory.nix ./users ] ++ moduleFiles;
 
   config = lib.mkIf hasHost {
     home-manager.extraSpecialArgs = { inherit pkgsUnstable dotfilesSources; };
 
-    environment.systemPackages = (with pkgs; [ git age ])
+    environment.systemPackages = (with pkgs; [ git age home-manager ])
       ++ [ pkgsUnstable.ssh-to-age ];
   };
 }

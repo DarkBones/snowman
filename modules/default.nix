@@ -18,7 +18,7 @@ in {
   config = lib.mkIf hasHost {
     home-manager.extraSpecialArgs = { inherit pkgsUnstable dotfilesSources; };
 
-    environment.systemPackages = (with pkgs; [ git age ])
+    environment.systemPackages = (with pkgs; [ git age home-manager ])
       ++ [ pkgsUnstable.ssh-to-age ];
   };
 }
