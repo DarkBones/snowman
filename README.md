@@ -226,32 +226,91 @@ This **replaces** the installer’s configuration with your Snowman-driven one.
 
 # 🛠️ Workflows: Dotfiles (Dev vs. Prod)
 
-Snowman includes a workflow for managing your "Head" (Dotfiles).
+Snowman treats dotfiles as a separate concern from the OS, and provides **two explicit modes** depending on what you are doing:
 
-Because NixOS stores files in the immutable Nix Store, editing your Neovim or Shell config usually requires a rebuild (`sudo nixos-rebuild switch`). This is too slow for tweaking configs.
+- **DEV mode** → fast feedback, no rebuilds while editing
+- **PROD mode** → reproducible, pinned configuration
 
-Snowman solves this with the `snowman-dotfiles` command.
+You switch between them using the `snowman-dotfiles` helper.
 
-### Prod Mode (Default)
+---
 
-In this mode, dotfiles are managed *without reading any environment variables*. How dotfiles are sourced depends on your dotfiles role configuration:
+## PROD mode (default, reproducible)
 
-* If `roles.dotfiles` resolves a pinned source in `dotfilesSources` (flake input), links are created from the Nix store.
-* Otherwise, Snowman falls back to Git mode (clone/pull at activation time) if `roles.dotfiles.repo` is set.
+In PROD mode, your dotfiles are treated as *immutable inputs*:
+
+- They come from a pinned source (flake input) **or**
+- They are cloned and fixed at rebuild time
+
+Dotfiles live in the **Nix store**, and any change requires a rebuild.
 
 ```bash
 snowman-dotfiles prod
+````
+
+This performs a **pure** rebuild:
+
+```bash
+sudo nixos-rebuild switch --flake .#<host>
 ```
 
-### Dev Mode
+Use this mode for:
 
-In this mode, Home Manager creates *mutable* symlinks to your local dotfiles checkout, controlled by the `SNOWMAN_DOTFILES_MODE=dev` environment variable (requires `--impure` on rebuild).
+* Daily use
+* Deploying to other machines
+* Anything you want reproducible
+
+---
+
+## DEV mode (fast iteration)
+
+DEV mode exists for **editing dotfiles** without rebuilding NixOS.
+
+In this mode:
+
+* Home Manager creates **mutable symlinks** into your local dotfiles repo
+* Changes are picked up immediately by your editor / shell
+* No `nixos-rebuild` is needed when editing files
 
 ```bash
 snowman-dotfiles dev
 ```
 
-You can now edit your config in your local dotfiles repo and see changes instantly (restart the app/editor as needed). No rebuild required for edits themselves.
+This performs an **impure** rebuild once to switch modes:
+
+```bash
+sudo -E nixos-rebuild switch --impure --flake .#<host>
+```
+
+After that:
+
+* Edit files in your dotfiles repo
+* Restart the affected program (e.g. Neovim)
+* No rebuilds required
+
+---
+
+## Checking the current mode
+
+Dotfiles mode is **global system state**, not shell-local.
+
+You can always check it with:
+
+```bash
+snowman-dotfiles status
+```
+
+Example output:
+
+```text
+dotfiles: DEV (from /etc/snowman/dotfiles-mode)
+```
+
+or:
+
+```text
+dotfiles: PROD (from /etc/snowman/dotfiles-mode)
+```
 
 ---
 
