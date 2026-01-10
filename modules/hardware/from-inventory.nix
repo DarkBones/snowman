@@ -4,10 +4,11 @@ let
   host = if hasHost then inv.hosts.${currentHost} else { };
 in {
   config = lib.mkMerge [
-    (lib.mkIf hasHost {
+    (lib.mkIf (hasHost && (host ? hostname)) {
       networking.hostName = host.hostname;
-      system.stateVersion = inv.release;
     })
+
+    (lib.mkIf hasHost { system.stateVersion = inv.release; })
 
     {
       assertions = [

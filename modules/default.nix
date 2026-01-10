@@ -7,13 +7,23 @@ let
 
   nixFiles = builtins.filter (name:
     entries.${name} == "regular" && lib.hasSuffix ".nix" name && name
-    != "default.nix") (builtins.attrNames entries);
+    != "default.nix" && name != "engine-inputs.nix" && name
+    != "bootstrap-usb.nix" && name != "sops.nix") (builtins.attrNames entries);
 
   moduleFiles = map (name: here + "/${name}") nixFiles;
 
 in {
-  imports = [ ./hardware ./home/from-inventory.nix ./users ./compat.nix ]
-    ++ moduleFiles;
+  imports = [
+    ./engine-inputs.nix
+    ./bootstrap-usb.nix
+    ./host-secrets-from-inventory.nix
+    ./sops.nix
+
+    ./hardware
+    ./home/from-inventory.nix
+    ./users
+    ./compat.nix
+  ] ++ moduleFiles;
 } // lib.optionalAttrs hasHost {
   home-manager.extraSpecialArgs = { inherit pkgsUnstable dotfilesSources; };
 
