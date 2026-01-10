@@ -1,4 +1,6 @@
-{ lib, pkgs, pkgsUnstable, dotfilesSources, inv, currentHost, ... }:
+{ lib, pkgs, pkgsUnstable, dotfilesSources ? { }, inv, currentHost
+, sops-nix ? null, sopsConfigPath ? null, networkSecretsPath ? null
+, extraHomeImports ? [ ], inputs ? null, config, ... }:
 let
   hasHost = builtins.hasAttr currentHost inv.hosts;
 
@@ -16,9 +18,11 @@ in {
     ++ moduleFiles;
 
   config = lib.mkIf hasHost {
-    home-manager.extraSpecialArgs = { inherit pkgsUnstable dotfilesSources; };
+    config = lib.mkIf hasHost {
+      home-manager.extraSpecialArgs = { inherit pkgsUnstable dotfilesSources; };
 
-    environment.systemPackages = (with pkgs; [ git age ])
-      ++ [ pkgsUnstable.ssh-to-age ];
+      environment.systemPackages = (with pkgs; [ git age ])
+        ++ [ pkgsUnstable.ssh-to-age ];
+    };
   };
 }

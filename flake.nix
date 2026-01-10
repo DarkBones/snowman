@@ -10,8 +10,14 @@
   };
 
   outputs = inputs@{ self, nixpkgs, ... }: {
+    nixosModules.default = { ... }: {
+      imports = [
+        ./modules
+        ./modules/engine-inputs.nix
+        ({ ... }: { snowman.engineInputs = inputs; })
+      ];
+    };
 
-    nixosModules.default = ./modules;
     homeModules.default = ./modules/home;
 
     templates.default = {
