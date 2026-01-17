@@ -244,7 +244,7 @@
           ####################################################
           repo = "https://github.com/DarkBones/dotfiles.git";
           dir = "Developer/dotfiles";
-          branch = "main";
+          branch = "stable";
           sparse = [ "nvim" "zsh" ];
 
           ####################################################
