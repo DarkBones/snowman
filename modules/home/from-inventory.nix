@@ -5,8 +5,9 @@ in if !hasHost then
 else
   let
     hostCfg = inv.hosts.${currentHost};
-    hostUsers =
-      lib.filterAttrs (n: u: lib.elem n (hostCfg.users or [ ])) inv.users;
+    hostUsers = lib.filterAttrs (n: u:
+      lib.elem n (hostCfg.users or [ ]) && (u.homeManaged or false)
+      && (u.isNormalUser or true)) inv.users;
 
     hostRoleFilter = hostCfg.availableRoles or null;
   in {
