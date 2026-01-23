@@ -83,9 +83,7 @@ in {
         } // lib.optionalAttrs isSystem { isSystemUser = true; }
           // lib.optionalAttrs (!isSystem) {
             isNormalUser = u.isNormalUser or true;
-          }
-          // lib.optionalAttrs (u ? face && u.face != null) { icon = u.face; }))
-        users;
+          })) users;
     }
 
     # Password selection (SOPS vs initialPassword) ------------------------------
