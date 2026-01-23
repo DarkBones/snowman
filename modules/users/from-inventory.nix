@@ -72,14 +72,20 @@ in {
   }] ++ enableFragments ++ [
     {
       # Basic user definitions ---------------------------------------------------
-      users.users = lib.mapAttrs (name: u: {
-        isNormalUser = u.isNormalUser or true;
-        uid = u.uid;
-        group = name;
-        extraGroups = u.groups or [ ];
-        shell = toShell (u.shell or "bash");
-        openssh.authorizedKeys.keys = keysFor u;
-      }) users;
+      users.users = lib.mapAttrs (name: u:
+        let isSystem = (u ? isSystemUser) && u.isSystemUser;
+        in ({
+          uid = u.uid;
+          group = name;
+          extraGroups = u.groups or [ ];
+          shell = toShell (u.shell or "bash");
+          openssh.authorizedKeys.keys = keysFor u;
+        } // lib.optionalAttrs isSystem { isSystemUser = true; }
+          // lib.optionalAttrs (!isSystem) {
+            isNormalUser = u.isNormalUser or true;
+          }
+          // lib.optionalAttrs (u ? face && u.face != null) { icon = u.face; }))
+        users;
     }
 
     # Password selection (SOPS vs initialPassword) ------------------------------
