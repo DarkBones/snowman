@@ -121,6 +121,9 @@
       groups = [ "wheel" ];
       shell = "zsh";
 
+      # face = ./path/to/avatar.png # Optional
+      # isNormalUser = true # true by default
+
       ########################################################
       ## Login method (required by Snowman)
       ##
