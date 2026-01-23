@@ -42,6 +42,11 @@ else
           systemd.user.startServices = false;
 
           roles = finalRoles;
+
+          home.file = lib.mkIf (u ? face && u.face != null) {
+            ".face".source = u.face;
+            ".face.icon".source = u.face;
+          };
         });
 
       assertions = lib.mapAttrsToList (name: u: {
