@@ -123,6 +123,7 @@
 
       # face = ./path/to/avatar.png # Optional
       # isNormalUser = true # true by default
+      # isSystemUser = false # false by default
 
       ########################################################
       ## Login method (required by Snowman)

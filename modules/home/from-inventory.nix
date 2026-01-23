@@ -5,9 +5,9 @@ in if !hasHost then
 else
   let
     hostCfg = inv.hosts.${currentHost};
-    hostUsers = lib.filterAttrs (n: u:
-      lib.elem n (hostCfg.users or [ ]) && (u.homeManaged or false)
-      && (u.isNormalUser or true)) inv.users;
+    hostUsers = lib.filterAttrs
+      (n: u: lib.elem n (hostCfg.users or [ ]) && (u.homeManaged or false))
+      inv.users;
 
     hostRoleFilter = hostCfg.availableRoles or null;
   in {
@@ -50,10 +50,17 @@ else
           };
         });
 
-      assertions = lib.mapAttrsToList (name: u: {
+      assertions = (lib.mapAttrsToList (name: u: {
         assertion = !(u ? envFile) || builtins.pathExists u.envFile;
         message =
           "User ${name}: envFile '${toString u.envFile}' does not exist.";
-      }) hostUsers;
+      }) hostUsers) ++ [{
+        assertion = (builtins.attrNames hostUsers) != [ ];
+        message = ''
+          Snowman: no home-managed users selected for host ${currentHost}.
+
+          Fix: set users.<name>.homeManaged = true for at least one user on this host.
+        '';
+      }];
     };
   }
