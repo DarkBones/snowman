@@ -338,7 +338,7 @@ This section details the advanced configuration available in `inventory.nix`.
 At the top of `inventory.nix`:
 
 ```nix
-release = "25.05";
+release = "25.11";
 ```
 
 Snowman uses this as both the NixOS `system.stateVersion` and the Home Manager `stateVersion`.

@@ -1,6 +1,6 @@
 {
   # Used as system.stateVersion + HM stateVersion
-  release = "25.05";
+  release = "25.11";
 
   ############################################################
   ## Optional: declarative Wi-Fi networks

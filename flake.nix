@@ -4,8 +4,8 @@
   # These inputs are just needed to *build* the modules,
   # not for your own config
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
-    home-manager.url = "github:nix-community/home-manager/release-25.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
+    home-manager.url = "github:nix-community/home-manager/release-25.11";
     sops-nix.url = "github:mic92/sops-nix";
   };
 
