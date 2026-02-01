@@ -1,29 +1,42 @@
-keys:
-  - &users:
-    - &usb age1...<your age public key from the SNOWMANKEY USB drive>
-    - &someuser age1...<public key of a user>
-  - &hosts:
-    - &nix-vm age1...<age key derrived from host's public ssh key>
-creation_rules:
-  # Per-user secrets files, e.g. users/secrets/bas_secrets.yaml
-  - path_regex: ^users\/secrets\/.+_secrets\.(yml|yaml)$
-    key_groups:
-      - age:
-          - *usb
-          - *someuser
-          - *nix-vm
+# Individual keys
+.keys:
+  snowmankey_usb: &snowmankey_usb age1...<your age public key from the SNOWMANKEY USB drive>
+  myuser_myhost: &myuser_myhost age1...<public key of a user>
 
-  # Per-host secrets files, e.g. hosts/secrets/vm-snowman_secrets.yaml
-  - path_regex: ^hosts\/secrets\/.+_secrets\.(yml|yaml)$
+  myhost: &myhost age1...<age key derrived from host's public ssh key>
+
+# Groups
+.user_keys: &user_keys
+  - *snowmankey_usb
+  - *myuser_myhost
+
+.host_keys: &host_keys
+  - *myhost
+
+.all_keys: &all_keys
+  - *snowmankey_usb
+  - *myuser_myhost
+  - *myhost
+
+creation_rules:
+  # networks/secrets.yml
+  - path_regex: ^networks/secrets\.(yml|yaml)$
+    shamir_threshold: 1
     key_groups:
-      - age:
-          - *usb
-          - *someuser
-          - *nix-vm
+      - age: *all_keys
+
+  # users/secrets/*_secrets.yml
+  - path_regex: ^users/secrets/.+_secrets\.(yml|yaml)$
+    shamir_threshold: 1
+    key_groups:
+      - age: *all_keys
+
+  # hosts/secrets/*_secrets.yml
+  - path_regex: ^hosts/secrets/.+_secrets\.(yml|yaml)$
+    key_groups:
+      - age: *host_keys
 
   - path_regex: ^secrets\.(yml|yaml)$
+    shamir_threshold: 1
     key_groups:
-      - age:
-          - *usb
-          - *someuser
-          - *nix-vm
+      - age: *all_keys
