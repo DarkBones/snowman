@@ -33,14 +33,21 @@ in {
       fi
 
       show_help() {
-        echo "Usage: snowman [dev|prod|status]"
+        echo "Usage: snowman <command> [args]"
         echo ""
-        echo "  dev     - Enable dev mode (mutable symlinks managed by HM)"
-        echo "  prod    - Enable prod mode (immutable store links managed by HM) [default]"
-        echo "  status  - Show current mode"
+        echo "Commands:"
+        echo "  prod          Rebuild in prod mode (immutable dotfiles) [default]"
+        echo "  dev           Rebuild in dev mode (mutable dotfiles)"
+        echo "  update [inp]  Update flake inputs (all or specific input)"
+        echo "  diff          Show what would change (dry-run)"
+        echo "  rollback      Rollback to previous generation"
+        echo "  gc            Garbage collect old generations"
+        echo "  status        Show current mode and flake path"
         echo ""
         echo "Environment:"
-        echo "  SNOWMAN_FLAKE  - Override flake path (default: $DEFAULT_FLAKE_FILE)"
+        echo "  SNOWMAN_FLAKE  Override flake path"
+        echo ""
+        echo "Current flake: $FLAKE_REF"
         exit 0
       }
 
@@ -56,6 +63,7 @@ in {
           echo "dotfiles: UNKNOWN ($MODE_FILE not present)"
         fi
         echo "flake: $FLAKE_REF"
+        echo "host: ${currentHost}"
       }
 
       set_mode_file() {
@@ -64,39 +72,83 @@ in {
         echo "$mode" | sudo -H tee "$MODE_FILE" >/dev/null
       }
 
-      MODE="''${1:-prod}"
+      do_update() {
+        local input="''${1:-}"
+        if [ -n "$input" ]; then
+          echo "➜ Updating flake input: $input"
+          nix flake update "$input" --flake "$FLAKE_REF"
+        else
+          echo "➜ Updating all flake inputs"
+          nix flake update --flake "$FLAKE_REF"
+        fi
+      }
 
-      case "$MODE" in
+      do_diff() {
+        echo "➜ Showing changes for ${currentHost} (dry-run)"
+        sudo -H nixos-rebuild dry-activate --flake "$FLAKE_REF#${currentHost}"
+      }
+
+      do_rollback() {
+        echo "➜ Rolling back to previous generation"
+        sudo -H nixos-rebuild switch --rollback
+      }
+
+      do_gc() {
+        echo "➜ Garbage collecting old generations"
+        sudo nix-collect-garbage -d
+        echo "➜ Removing old boot entries"
+        sudo /run/current-system/bin/switch-to-configuration boot
+      }
+
+      do_rebuild() {
+        local mode="$1"
+        echo "➜ Rebuilding NixOS for host ${currentHost} using flake: $FLAKE_REF"
+
+        if [ "$mode" = "dev" ]; then
+          sudo -H -E nixos-rebuild switch --impure --flake "$FLAKE_REF#${currentHost}"
+          set_mode_file dev
+        else
+          sudo -H nixos-rebuild switch --flake "$FLAKE_REF#${currentHost}"
+          set_mode_file prod
+        fi
+      }
+
+      CMD="''${1:-prod}"
+      shift || true
+
+      case "$CMD" in
         -h|--help|help)
           show_help
           ;;
         status)
           status
-          exit 0
+          ;;
+        update)
+          do_update "$@"
+          ;;
+        diff)
+          do_diff
+          ;;
+        rollback)
+          do_rollback
+          ;;
+        gc)
+          do_gc
           ;;
         dev)
           echo "➜ Enabling dotfiles DEV mode (SNOWMAN_DOTFILES_MODE=dev)"
           export SNOWMAN_DOTFILES_MODE=dev
+          do_rebuild dev
           ;;
         prod|production)
           echo "➜ Enabling dotfiles PROD mode"
           unset SNOWMAN_DOTFILES_MODE
-          MODE="prod"
+          do_rebuild prod
           ;;
         *)
-          die "unknown command: $MODE"
+          die "unknown command: $CMD (try 'snowman help')"
           ;;
       esac
-
-      echo "➜ Rebuilding NixOS for host ${currentHost} using flake: $FLAKE_REF"
-
-      if [ "$MODE" = "dev" ]; then
-        sudo -H -E nixos-rebuild switch --impure --flake "$FLAKE_REF#${currentHost}"
-        set_mode_file dev
-      else
-        sudo -H nixos-rebuild switch --flake "$FLAKE_REF#${currentHost}"
-        set_mode_file prod
-      fi
     '')
   ];
 }
