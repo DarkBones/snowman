@@ -231,7 +231,7 @@ Snowman treats dotfiles as a separate concern from the OS, and provides **two ex
 - **DEV mode** → fast feedback, no rebuilds while editing
 - **PROD mode** → reproducible, pinned configuration
 
-You switch between them using the `snowman-dotfiles` helper.
+You switch between them using the `snowman` command.
 
 ---
 
@@ -245,8 +245,9 @@ In PROD mode, your dotfiles are treated as *immutable inputs*:
 Dotfiles live in the **Nix store**, and any change requires a rebuild.
 
 ```bash
-snowman-dotfiles prod
-````
+snowman prod
+# or just: snowman (prod is the default)
+```
 
 This performs a **pure** rebuild:
 
@@ -273,7 +274,7 @@ In this mode:
 * No `nixos-rebuild` is needed when editing files
 
 ```bash
-snowman-dotfiles dev
+snowman dev
 ```
 
 This performs an **impure** rebuild once to switch modes:
@@ -297,7 +298,7 @@ Dotfiles mode is **global system state**, not shell-local.
 You can always check it with:
 
 ```bash
-snowman-dotfiles status
+snowman status
 ```
 
 Example output:

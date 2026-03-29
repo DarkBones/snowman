@@ -1,15 +1,15 @@
 { pkgs, currentHost, ... }: {
   environment.systemPackages = [
-    (pkgs.writeShellScriptBin "snowman-dotfiles" ''
+    (pkgs.writeShellScriptBin "snowman" ''
       set -euo pipefail
 
       MODE_FILE="/etc/snowman/dotfiles-mode"
 
       show_help() {
-        echo "Usage: snowman-dotfiles [dev|prod|status]"
+        echo "Usage: snowman [dev|prod|status]"
         echo ""
         echo "  dev     - Enable dev mode (mutable symlinks managed by HM)"
-        echo "  prod    - Enable prod mode (immutable store links managed by HM)"
+        echo "  prod    - Enable prod mode (immutable store links managed by HM) [default]"
         echo "  status  - Show current mode (global system state)"
         exit 0
       }
@@ -40,11 +40,12 @@
         echo "$mode" | sudo -H tee "$MODE_FILE" >/dev/null
       }
 
-      if [ "$#" -eq 0 ]; then show_help; fi
-
-      MODE="$1"
+      MODE="''${1:-prod}"
 
       case "$MODE" in
+        -h|--help|help)
+          show_help
+          ;;
         status)
           status
           exit 0
@@ -59,6 +60,7 @@
           MODE="prod"
           ;;
         *)
+          echo "Unknown mode: $MODE"
           show_help
           ;;
       esac
