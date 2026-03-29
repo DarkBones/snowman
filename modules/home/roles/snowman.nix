@@ -55,7 +55,7 @@ in {
           echo "  update [inp]  Update flake inputs (all or specific input)"
           echo "  diff          Show what would change (dry-run)"
           echo "  rollback      Rollback to previous generation"
-          echo "  gc            Garbage collect old generations"
+          echo "  gc [n]        Garbage collect (keep last n generations, default 10, 0 = all)"
           echo "  status        Show current mode and flake path"
           echo ""
           echo "Environment:"
@@ -122,10 +122,22 @@ in {
         }
 
         do_gc() {
-          echo "➜ Garbage collecting old generations"
-          nix-collect-garbage -d
-          echo "➜ Removing old home-manager generations"
-          home-manager expire-generations "-7 days" || true
+          local keep="''${1:-10}"
+          if ! [[ "$keep" =~ ^[0-9]+$ ]]; then
+            die "gc: expected a number, got '$keep'"
+          fi
+          if [ "$keep" -eq 0 ]; then
+            echo "➜ Deleting all old home-manager generations"
+            home-manager expire-generations "-1 second" || true
+          else
+            echo "➜ Keeping last $keep home-manager generations, deleting older ones"
+            # List generations, skip the last n, delete the rest
+            home-manager generations | tail -n "+$((keep + 1))" | awk '{print $5}' | while read -r gen; do
+              [ -n "$gen" ] && rm -rf "$gen" && echo "  removed: $gen"
+            done
+          fi
+          echo "➜ Garbage collecting unreachable store paths"
+          nix-collect-garbage
         }
 
         do_rebuild() {
@@ -167,7 +179,7 @@ in {
             do_rollback
             ;;
           gc)
-            do_gc
+            do_gc "$@"
             ;;
           dev)
             echo "➜ Enabling dotfiles DEV mode (SNOWMAN_DOTFILES_MODE=dev)"

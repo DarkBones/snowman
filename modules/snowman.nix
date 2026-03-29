@@ -41,7 +41,7 @@ in {
         echo "  update [inp]  Update flake inputs (all or specific input)"
         echo "  diff          Show what would change (dry-run)"
         echo "  rollback      Rollback to previous generation"
-        echo "  gc            Garbage collect old generations"
+        echo "  gc [n]        Garbage collect (keep last n generations, default 10, 0 = all)"
         echo "  status        Show current mode and flake path"
         echo ""
         echo "Environment:"
@@ -107,9 +107,20 @@ in {
       }
 
       do_gc() {
-        echo "➜ Garbage collecting old generations"
-        sudo nix-collect-garbage -d
-        echo "➜ Removing old boot entries"
+        local keep="''${1:-10}"
+        if ! [[ "$keep" =~ ^[0-9]+$ ]]; then
+          die "gc: expected a number, got '$keep'"
+        fi
+        if [ "$keep" -eq 0 ]; then
+          echo "➜ Deleting all old generations"
+          sudo nix-env --delete-generations old -p /nix/var/nix/profiles/system
+        else
+          echo "➜ Keeping last $keep generations, deleting older ones"
+          sudo nix-env --delete-generations "+$keep" -p /nix/var/nix/profiles/system
+        fi
+        echo "➜ Garbage collecting unreachable store paths"
+        sudo nix-collect-garbage
+        echo "➜ Updating boot entries"
         sudo /run/current-system/bin/switch-to-configuration boot
       }
 
@@ -152,7 +163,7 @@ in {
           do_rollback
           ;;
         gc)
-          do_gc
+          do_gc "$@"
           ;;
         dev)
           echo "➜ Enabling dotfiles DEV mode (SNOWMAN_DOTFILES_MODE=dev)"
