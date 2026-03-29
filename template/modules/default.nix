@@ -12,7 +12,7 @@ let
   moduleFiles = map (name: here + "/${name}") nixFiles;
 
 in {
-  # We import ./snowman-dotfiles.nix automatically via moduleFiles because it's in this folder
+  # We import ./snowman.nix automatically via moduleFiles because it's in this folder
   imports = [ ./hardware ./home/from-inventory.nix ./users ] ++ moduleFiles;
 
   config = lib.mkIf hasHost {
