@@ -3,6 +3,7 @@ let
   cfg = config.roles.snowman;
   username = config.home.username;
   configName = "${username}@${currentHost}";
+  isDarwin = pkgs.stdenv.isDarwin;
 in {
   options.roles.snowman = {
     enable = lib.mkEnableOption "Snowman CLI for standalone home-manager";
@@ -13,7 +14,8 @@ in {
     };
   };
 
-  config = lib.mkIf cfg.enable {
+  # Only apply on Darwin (macOS) - on NixOS, the system module provides snowman
+  config = lib.mkIf (cfg.enable && isDarwin) {
     home.file.".config/snowman/flake".text = cfg.flakePath + "\n";
 
     home.packages = [
