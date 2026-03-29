@@ -50,7 +50,7 @@ in {
           echo "Usage: snowman <command> [args]"
           echo ""
           echo "Commands:"
-          echo "  prod          Rebuild in prod mode (immutable dotfiles) [default]"
+          echo "  prod          Rebuild in prod mode (immutable dotfiles)"
           echo "  dev           Rebuild in dev mode (mutable dotfiles)"
           echo "  update [inp]  Update flake inputs (all or specific input)"
           echo "  diff          Show what would change (dry-run)"
@@ -63,7 +63,6 @@ in {
           echo ""
           echo "Configuration: ${configName}"
           echo "Current flake: $FLAKE_REF"
-          exit 0
         }
 
         status() {
@@ -98,9 +97,23 @@ in {
           fi
         }
 
+        get_current_mode() {
+          if [ -r "$MODE_FILE" ]; then
+            cat "$MODE_FILE" 2>/dev/null || echo "prod"
+          else
+            echo "prod"
+          fi
+        }
+
         do_diff() {
-          echo "➜ Showing changes for ${configName} (dry-run)"
-          home-manager build --flake "$FLAKE_REF#${configName}" --dry-run
+          local current_mode
+          current_mode="$(get_current_mode)"
+          echo "➜ Showing changes for ${configName} (dry-run, mode: $current_mode)"
+          if [ "$current_mode" = "dev" ]; then
+            home-manager build --impure --flake "$FLAKE_REF#${configName}"
+          else
+            home-manager build --flake "$FLAKE_REF#${configName}"
+          fi
         }
 
         do_rollback() {
@@ -128,12 +141,18 @@ in {
           fi
         }
 
-        CMD="''${1:-prod}"
-        shift || true
+        if [ $# -eq 0 ]; then
+          show_help
+          exit 1
+        fi
+
+        CMD="$1"
+        shift
 
         case "$CMD" in
           -h|--help|help)
             show_help
+            exit 0
             ;;
           status)
             status
