@@ -245,6 +245,11 @@
           ##
           ## By default this template config will pull *your*
           ## dotfiles repo as a demo.
+          ##
+          ## `dir` may be:
+          ##   - relative to $HOME, e.g. "dotfiles" or "Developer/dotfiles"
+          ##   - home-relative, e.g. "~/Developer/dotfiles"
+          ##   - absolute, e.g. "/home/alice/Developer/dotfiles"
           ####################################################
           repo = "https://github.com/DarkBones/dotfiles.git";
           dir = "Developer/dotfiles";

@@ -12,23 +12,29 @@ let
     if rawMode == "dev" || rawMode == "prod" then rawMode else "prod";
   fallbackIsDev = fallbackMode == "dev";
 
-  mode =
-    if snowmanDotfilesMode != null then
-      snowmanDotfilesMode
-    else if snowmanDotfilesIsDev != null then
-      if snowmanDotfilesIsDev then "dev" else "prod"
-    else
-      fallbackMode;
+  mode = if snowmanDotfilesMode != null then
+    snowmanDotfilesMode
+  else if snowmanDotfilesIsDev != null then
+    if snowmanDotfilesIsDev then "dev" else "prod"
+  else
+    fallbackMode;
 
-  isDev =
-    if snowmanDotfilesIsDev != null then
-      snowmanDotfilesIsDev
-    else if snowmanDotfilesMode != null then
-      snowmanDotfilesMode == "dev"
-    else
-      fallbackIsDev;
+  isDev = if snowmanDotfilesIsDev != null then
+    snowmanDotfilesIsDev
+  else if snowmanDotfilesMode != null then
+    snowmanDotfilesMode == "dev"
+  else
+    fallbackIsDev;
 
-  repoDir = "${config.home.homeDirectory}/${cfg.dir or "Developer/dotfiles"}";
+  repoDir = let
+    dir = cfg.dir;
+    homeDir = config.home.homeDirectory;
+  in if lib.hasPrefix "~/" dir then
+    "${homeDir}/${lib.removePrefix "~/" dir}"
+  else if lib.hasPrefix "/" dir then
+    dir
+  else
+    "${homeDir}/${dir}";
   root = if isDev then
     repoDir
   else if dotfilesRepo != null then
@@ -37,8 +43,7 @@ let
     repoDir;
 in {
   config.assertions = [{
-    assertion =
-      snowmanDotfilesMode == null || snowmanDotfilesIsDev == null
+    assertion = snowmanDotfilesMode == null || snowmanDotfilesIsDev == null
       || ((snowmanDotfilesMode == "dev") == snowmanDotfilesIsDev);
     message = ''
       dotfiles-root: inconsistent Snowman dotfiles special args.
@@ -65,6 +70,7 @@ in {
     type = lib.types.str;
     readOnly = true;
     default = root;
-    description = "Resolved dotfiles root (dev checkout, pinned source, or git checkout dir).";
+    description =
+      "Resolved dotfiles root (dev checkout, pinned source, or git checkout dir).";
   };
 }

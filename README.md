@@ -226,27 +226,81 @@ This **replaces** the installer’s configuration with your Snowman-driven one.
 
 # 🛠️ Workflows: Dotfiles (Dev vs. Prod)
 
-Snowman treats dotfiles as a separate concern from the OS, and provides **two explicit modes** depending on what you are doing:
+Snowman separates two different questions:
 
-- **DEV mode** → fast feedback, no rebuilds while editing
-- **PROD mode** → reproducible, pinned configuration
+1. **Where do the dotfiles come from?**
+   - a **pinned source** in your flake inputs (`dotfilesSources`)
+   - or a **git checkout** managed on the target machine (`roles.dotfiles.repo`)
+2. **How should Home Manager treat them right now?**
+   - **PROD**: immutable / rebuild-oriented
+   - **DEV**: mutable / edit-in-place
 
-You switch between them using the `snowman` command.
+The dotfiles *mode* is resolved once per evaluation and exposed to Home Manager as:
+
+- `config.dotfiles.mode`
+- `config.dotfiles.isDev`
+- `config.dotfiles.root`
+
+The Snowman **template** ships with a Home Manager override that uses those values to switch between mutable and immutable dotfiles behavior. If you keep the template behavior, the workflows below apply directly.
 
 ---
 
-## PROD mode (default, reproducible)
+## First: choose a dotfiles source
 
-In PROD mode, your dotfiles are treated as *immutable inputs*:
+Snowman supports two source models.
 
-- They come from a pinned source (flake input) **or**
-- They are cloned and fixed at rebuild time
+### Option A: Pinned source (recommended)
 
-Dotfiles live in the **Nix store**, and any change requires a rebuild.
+This is the reproducible setup.
+
+In your body repo `flake.nix`:
+
+```nix
+inputs.alice-dotfiles = {
+  url = "github:YourName/dotfiles";
+  flake = false;
+};
+```
+
+and then map it:
+
+```nix
+dotfilesSources = {
+  alice = inputs.alice-dotfiles;
+};
+```
+
+If `roles.dotfiles.sourceKey` resolves in `dotfilesSources`, Snowman can use that pinned source in PROD mode.
+
+### Option B: Git fallback
+
+If no pinned source is found, Snowman falls back to the git settings in `roles.dotfiles`:
+
+```nix
+dotfiles = {
+  enable = true;
+  repo = "https://github.com/YourName/dotfiles.git";
+  dir = "dotfiles";
+  branch = "main";
+};
+```
+
+This is convenient to get started, but it is **not fully reproducible**. Snowman will clone/pull the repo on the target machine during activation.
+
+`roles.dotfiles.dir` accepts three forms:
+
+- relative to the user's home, e.g. `"dotfiles"` or `"Developer/dotfiles"`
+- home-relative, e.g. `"~/Developer/dotfiles"`
+- absolute, e.g. `"/home/alice/Developer/dotfiles"`
+
+---
+
+## PROD mode
+
+Use:
 
 ```bash
 snowman prod
-# or just: snowman (prod is the default)
 ```
 
 This performs a **pure** rebuild:
@@ -255,23 +309,22 @@ This performs a **pure** rebuild:
 sudo nixos-rebuild switch --flake .#<host>
 ```
 
-Use this mode for:
+What PROD means depends on your dotfiles source:
+
+- **Pinned source configured:** the template override points `config.dotfiles.root` at the pinned store path, and Home Manager links from the Nix store. This is the recommended fully reproducible setup.
+- **No pinned source configured:** Snowman falls back to the git-based dotfiles role and syncs the checkout in `roles.dotfiles.dir` during activation. This works, but it is not the same as a fully pinned deployment.
+
+Use PROD mode for:
 
 * Daily use
-* Deploying to other machines
-* Anything you want reproducible
+* Machines you want stable
+* Deployments where you want the rebuild itself to decide the resulting state
 
 ---
 
-## DEV mode (fast iteration)
+## DEV mode
 
-DEV mode exists for **editing dotfiles** without rebuilding NixOS.
-
-In this mode:
-
-* Home Manager creates **mutable symlinks** into your local dotfiles repo
-* Changes are picked up immediately by your editor / shell
-* No `nixos-rebuild` is needed when editing files
+Use:
 
 ```bash
 snowman dev
@@ -283,11 +336,22 @@ This performs an **impure** rebuild once to switch modes:
 sudo -E nixos-rebuild switch --impure --flake .#<host>
 ```
 
-After that:
+With the template’s Home Manager override, DEV mode means:
 
-* Edit files in your dotfiles repo
-* Restart the affected program (e.g. Neovim)
-* No rebuilds required
+* `config.dotfiles.root` points at your local checkout resolved from `roles.dotfiles.dir`
+* Home Manager creates **out-of-store symlinks** into that checkout
+* After switching once, you can edit dotfiles without rebuilding NixOS again
+
+Typical DEV workflow:
+
+1. Run `snowman dev`
+2. Edit files in your local dotfiles repo
+3. Restart the affected program (shell, editor, bar, etc.)
+
+Important:
+
+* DEV mode expects the local dotfiles checkout to exist at the path resolved from `roles.dotfiles.dir`.
+* DEV mode is mainly for the machine where you actively edit your dotfiles.
 
 ---
 
@@ -295,13 +359,13 @@ After that:
 
 Dotfiles mode is **global system state**, not shell-local.
 
-You can always check it with:
+Check it with:
 
 ```bash
 snowman status
 ```
 
-Example output:
+Example:
 
 ```text
 dotfiles: DEV (from /etc/snowman/dotfiles-mode)
