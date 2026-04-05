@@ -1,6 +1,9 @@
 {
   description = "A new Snowman user configuration";
 
+  # New users: you usually do NOT need to change this file for your first
+  # successful install. Start with inventory.nix first.
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -20,8 +23,12 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # Optional: add pinned dotfiles inputs here, e.g.:
-    # bas-dotfiles = {
+    # Optional, later: add pinned dotfiles inputs here.
+    # This is the reproducible/stable dotfiles path, but you can ignore it
+    # until after your first machine works.
+    #
+    # Example:
+    # my-dotfiles = {
     #   url = "github:YourUserName/dotfiles";
     #   flake = false;
     # };
@@ -31,13 +38,17 @@
     let
       lib = nixpkgs.lib;
 
-      # This is YOUR inventory, not snowman's
+      # This is your source of truth.
+      # Most first-time users should spend their time in inventory.nix, not here.
       inv = import ./inventory.nix;
 
-      # This is where you map your dotfiles inputs (optional).
-      # Example (if you added `bas-dotfiles` above):
+      # Optional, later: map pinned dotfiles inputs here.
+      # If you leave this empty, Snowman can still work and the dotfiles role
+      # can use git fallback or remain disabled until you are ready.
+      #
+      # Example (if you added `my-dotfiles` above):
       # dotfilesSources = {
-      #   bas = inputs.bas-dotfiles;
+      #   alice = inputs.my-dotfiles;
       # };
       dotfilesSources = { };
 
@@ -63,7 +74,6 @@
       };
 
       mkHost = name: attrs:
-        # { strictHw ? true }: # Enable to hard error on missing hardware-configration.nix
         let
           host = inv.hosts.${name};
           hostName = host.hostname or name;
@@ -78,9 +88,9 @@
             # Home Manager integration
             home-manager.nixosModules.home-manager
 
-            # Per-host wrapper that:
-            #  - imports the hardware config
-            #  - asserts that it exists
+            # This keeps the first install safe:
+            # - import hardware if it exists
+            # - fail with a clear message if you forgot to import it
             ({ lib, ... }: {
               imports = lib.optional (builtins.pathExists hwFile) hwFile;
 

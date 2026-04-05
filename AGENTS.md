@@ -4,336 +4,188 @@
 
 Snowman is an inventory-driven NixOS framework.
 
-This repository is the **Snowman base (engine)**.
+This repository is the **Snowman base/engine**. It defines reusable modules, framework contracts, and the template used by new users.
 
-It defines:
-- the framework
-- reusable modules
-- the template used by new users
+Most users should **not** edit this repo directly. They should create a separate body repo from the template and work there.
 
-### 🚫 Important constraint
+## First Decision: Which Repo Owns The Change?
 
-**End users DO NOT modify this repository.**
+Every Snowman task should be classified before editing anything:
 
-- Users create their own config via “Use this template”
-- That creates a separate **body repo**
-- All personalization happens there
+- **Base**: generic framework behavior, template improvements, inventory contracts, reusable modules
+- **Body**: personal hosts, users, roles, services, secrets wiring, flake wiring
+- **Dotfiles**: shell/editor/browser/terminal/app config files linked into `$HOME`
 
-This repo is only changed by:
-- the Snowman author
-- or via deliberate upstream contributions (PRs)
+If the request sounds like "make my machine do X", it almost always belongs in the **body repo**.
 
-If you are helping a user:
+If the request sounds like "every Snowman user should be able to do X", it may belong in **base**.
 
-> **Never suggest editing Snowman base. Always work in the body repo unless explicitly asked to modify the engine.**
+If the request is about config content inside `$HOME`, it usually belongs in **dotfiles**.
 
----
+When unsure, default to **body repo** and explain why.
 
-## Architecture Overview
+## How To Help A New User
 
-A Snowman setup consists of three repos:
+Do not teach the whole system at once.
 
-### 1. Snowman base (this repo)
-- framework + modules
-- inventory contract
-- default template
-- CLI behavior
+Guide new users in this order:
 
-### 2. Body repo (user-owned, from template)
-- hosts, users, roles
-- personal configuration
-- services and machine layout
-- overrides and extensions
+1. create a body repo from the template
+2. replace obvious placeholders
+3. get one host and one user working
+4. learn roles
+5. learn dotfiles modes
+6. learn secrets
+7. learn multi-host patterns
 
-### 3. Dotfiles repo (user-owned)
-- mutable app/editor/shell configs
-- files linked into `$HOME`
+That staged path is intentional. Do not front-load advanced concepts if they are not needed for the current task.
 
----
+## Framework Contract
 
-## Repo Boundaries (Strict)
+These behaviors are part of the engine and should be preserved unless you are deliberately improving them:
 
-### Snowman base (this repo)
-Only contains:
-- generic framework behavior
-- reusable modules
-- inventory schema + assertions
-- template definitions
-- cross-user features
+- the base exports `nixosModules.default`, `homeModules.default`, and the template from [`flake.nix`](./flake.nix)
+- the body repo's `inventory.nix` is the main source of truth
+- every host must define a hostname and at least one user
+- every user must provide at least one login method
+- Home Manager only applies to users with `homeManaged = true`
+- `hosts.<host>.availableRoles` filters enabled user roles on that host
+- host, user, and optional network secrets are wired through sops-nix
+- prod/dev dotfiles semantics must stay intact
 
-**Must NOT contain:**
-- usernames
-- hostnames
-- personal services
-- machine-specific logic
-- user-specific workflows
+Do not weaken assertions or remove framework contracts unless replacing them with something better and equally explicit.
 
----
+## Repo Boundaries
 
-### Body repo (where users work)
+### Belongs in Snowman base
 
-Contains:
-- hosts and inventory
-- users and login methods
-- secrets wiring
-- services (nginx, docker, etc.)
-- personal roles
-- overrides
+- reusable engine behavior
+- generic NixOS or Home Manager modules
+- inventory schema and assertions
+- template improvements for all users
+- generic onboarding guidance
 
-> If a change is about “my machine” → it belongs here.
+### Belongs in the body repo
 
----
+- host-specific config
+- personal users and login methods
+- local services and reverse proxy layout
+- personal roles and overrides
+- machine fleet structure
+- personal flake inputs and dotfiles source mapping
 
-### Dotfiles repo
+### Belongs in the dotfiles repo
 
-Contains:
-- editor configs
-- shell configs
-- UI/app configs
+- shell config
+- editor config
+- terminal config
+- browser/app config
+- themes, wallpapers, and other files linked into `$HOME`
 
-> If a change is about files in `$HOME` → it belongs here.
-
----
-
-## 🔴 First Rule for Agents
-
-Before making changes, decide:
-
-> **Does this belong in base, body, or dotfiles?**
-
-Then:
-- explain your choice
-- proceed in the correct repo
-
-If unsure:
-- default to **body repo**
-
----
-
-## Framework Contract (Do Not Break)
-
-These behaviors are defined by the engine and must be preserved:
-
-- The base exports:
-  - `nixosModules.default`
-  - `homeModules.default`
-  - a flake template
-
-- The body repo:
-  - imports Snowman base
-  - defines `inventory.nix` as the source of truth
-
-- `inventory.nix` defines:
-  - hosts
-  - users
-  - roles
-  - optional networking + secrets
-
-- Every host must:
-  - exist in `inv.hosts`
-  - define a hostname
-  - define at least one user
-
-- Every user must have **one login method**:
-  - SSH key
-  - `initialPassword`
-  - or SOPS password
-
-- Home Manager only applies if:
-  - `homeManaged = true`
-
-- Role filtering:
-  - `hosts.<host>.availableRoles` restricts user roles
-
-- Secrets:
-  - managed via `sops-nix`
-  - must follow declared schema
-
----
-
-## New User Setup Flow
-
-When guiding a new user:
-
-1. Create repo from template
-2. Edit `inventory.nix`
-   - replace usernames
-   - replace hostnames
-   - remove placeholder passwords
-3. Define first host
-4. Define first user
-5. Add login method (SSH or password)
-6. Enable Home Manager if desired
-7. Choose dotfiles strategy
-8. Configure secrets (`.sops.yaml`)
-9. Install NixOS
-10. Import hardware config
-11. Rebuild system
-
-Before first real install, verify:
-- no placeholder values remain
-- dotfiles source is valid
-- secrets are configured
-- hardware config exists
-
----
+Do not move personal logic into base. Do not move generic framework logic into one user's body repo unless the change is intentionally local.
 
 ## Dotfiles Model
 
-Snowman separates:
+Snowman separates dotfiles **content** from dotfiles **wiring**.
 
-- **content** → dotfiles repo
-- **wiring** → Snowman modules
+Current engine behavior:
 
-### Modes
+- **Pinned source**: dotfiles come from `dotfilesSources` in the body flake
+- **Git fallback**: if no pinned source exists, Snowman clones or updates the repo configured in `roles.dotfiles`
+- **Prod mode**: stable/reproducible mode
+- **Dev mode**: local mutable checkout for fast iteration
 
-Controlled by `SNOWMAN_DOTFILES_MODE`:
+The important principle:
 
-#### Prod mode (default)
-- links to pinned/store-backed dotfiles
-- reproducible
-- stable
+> Switching modes changes where symlinks point.
 
-#### Dev mode
-- links to local mutable checkout (e.g. `~/Developer/dotfiles`)
-- fast iteration
+It does not change the overall architecture.
 
-#### Git fallback
-- repo cloned during activation
-- used if no pinned source exists
-
-### Key Principle
-
-Switching modes changes:
-> **where symlinks point**
-
-It does NOT change:
-- role structure
-- module structure
-- system design
-
----
+Do not collapse this model into an always-local checkout or an always-impure workflow.
 
 ## AI Behavior Rules
 
-When modifying Snowman-based systems:
+When working on Snowman or a Snowman-derived repo:
 
-### Always:
-- preserve inventory-driven design
-- keep modules composable
-- respect repo boundaries
-- explain where changes belong
+- preserve the inventory-driven structure
+- prefer composable modules over stuffing everything into one host file
+- keep generic logic in base and personal logic in body
+- keep mutable config content in dotfiles
+- explain changes in terms of repo boundaries
+- update template/docs when engine behavior changes onboarding or contracts
 
-### Never:
-- move personal config into base
-- remove assertions without replacement
-- hardcode user-specific paths in base
-- break dev/prod dotfiles semantics
+Do not:
 
-### When uncertain:
-- default to body repo
-- ask for clarification
-
----
+- hardcode personal paths or usernames into base
+- suggest editing base for a purely personal change
+- remove assertions casually
+- break prod/dev dotfiles behavior to paper over a local setup problem
 
 ## Common Tasks
 
 ### Add a host
-→ body repo
+
+Usually **body repo**.
 
 - update `inventory.nix`
-- add host module if needed
-- import hardware config
-
----
+- attach host-local modules there
+- import hardware config in the body repo
 
 ### Add a user
-→ body repo
 
-- define in `inventory.nix`
-- set login method
-- enable roles
+Usually **body repo**.
 
----
+- define the user in `inventory.nix`
+- add login method
+- set `homeManaged = true` if Home Manager should apply
 
-### Add a role
-→ body repo first
+### Add a reusable role
 
-- place in `home/roles/`
+Usually **body repo** first.
+
+- add under `home/roles/`
 - enable per user
-- only move to base if generic
+- promote to base only if the role is truly generic
 
----
+### Add a service or machine-local module
 
-### Add a service
-→ body repo
+Usually **body repo**.
 
-- define module
-- attach to host
+- keep it host-local unless it is generic across users
 
----
+### Improve onboarding
 
-### Dotfiles setup
-→ body repo
+Usually **base repo**.
 
-- configure `roles.dotfiles`
-- map `linkMap`
-- optionally pin via flake input
+- README
+- template files
+- comments
+- AGENTS/CLAUDE guidance
 
----
+## Template Warnings
 
-### Secrets
-→ body repo
+Template values are examples, not production defaults.
 
-- configure `.sops.yaml`
-- define secrets in inventory
-- ensure keys exist
+Do not assume any of these are final:
 
----
-
-## Template Warning
-
-Template values are examples.
-
-Replace:
 - usernames
 - hostnames
-- passwords
 - repo URLs
-- dotfiles paths
+- branch names
+- placeholder passwords
+- example dotfiles settings
 
-Do not keep:
-- `changeme`
-- example repos
-- placeholder configs
+An agent should actively replace or call out template placeholders instead of preserving them.
 
----
+## Editing This Repo
 
-## Editing This Repo (Snowman Base)
+Only edit Snowman base when the change is generic for the framework or for future template users.
 
-Only modify this repo if:
+When you do:
 
-- you are extending the framework itself
-- you are fixing a generic issue
-- you are improving the template for all users
+- keep the change generic
+- preserve repo boundaries
+- keep the first-run path clear
+- update template docs/comments with engine changes
 
-When doing so:
-
-- keep everything generic
-- update template if behavior changes
-- maintain strict separation from user config
-- document changes clearly
-
----
-
-## Summary
-
-Snowman enforces:
-
-- **engine (base)** → immutable framework
-- **body repo** → user customization
-- **dotfiles repo** → mutable config
-
-If you remember one rule:
-
-> **Users do not edit Snowman base.**
+This repo should stay a clean engine, not a personal config.

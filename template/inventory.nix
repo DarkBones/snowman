@@ -1,4 +1,25 @@
 {
+  ############################################################
+  ## Start Here
+  ##
+  ## For a first successful install, you only need to do a few
+  ## things:
+  ##
+  ## 1. Replace the example host and user values below.
+  ## 2. Keep one simple login method (password or SSH key).
+  ## 3. Keep `homeManaged = true` for the user who should get
+  ##    Home Manager.
+  ## 4. Leave optional sections commented out for now unless
+  ##    you already know you need them.
+  ##
+  ## Learn later:
+  ## - pinned dotfiles inputs
+  ## - sops-managed secrets
+  ## - declarative Wi-Fi
+  ## - USB bootstrap keys
+  ## - multi-host role filtering
+  ############################################################
+
   # Used as system.stateVersion + HM stateVersion
   release = "25.05";
 
@@ -24,6 +45,7 @@
 
   hosts = {
     vm = {
+      # Replace this with your first real machine.
       hostname = "vm-snowman";
       system = "x86_64-linux";
       users = [ "bas" ];
@@ -88,7 +110,7 @@
       ## applied. This lets you reuse one user across many hosts
       ## but restrict e.g. gaming roles to a single machine.
       ############################################################
-      # availableRoles = [ "bas" "ssh" "dev" "secrets" ];
+      # availableRoles = [ "ssh" "dev" "secrets" ];
 
       ############################################################
       ## Optional: USB bootstrap Age key ("Snowman Key")
@@ -117,7 +139,9 @@
 
   users = {
     bas = {
+      # Replace "bas" with your real username before real use.
       uid = 1000;
+      homeManaged = true;
       groups = [ "wheel" ];
       shell = "zsh";
 
@@ -129,8 +153,10 @@
       ## Login method (required by Snowman)
       ##
       ## For the template we keep a simple temporary password
-      ## so the config works out-of-the-box. Replace this with
-      ## something real, or move to sops-based password hashes.
+      ## so your first install is easy to understand.
+      ##
+      ## Replace this before real use, or switch to SSH keys /
+      ## sops-based password hashes.
       ########################################################
       initialPassword = "changeme";
 
@@ -138,7 +164,7 @@
       ## SSH public keys for logging in as this user
       ##
       ## These keys are written to ~/.ssh/authorized_keys for
-      ## `bas` on every host that lists `bas` in hosts.<host>.users.
+      ## this user on every host that lists them in hosts.<host>.users.
       ##
       ## You normally put the public keys of the machines you
       ## SSH *from* here (laptop, work PC, YubiKey-backed key…),
@@ -148,7 +174,7 @@
       #
       # Alternative file-based styles:
       # sshPubKeyFile  = ./users/keys/bas.pub;
-      # sshPubKeyFiles = [ ./users/keys/bas-laptop.pub ./users/keys/bas-pc.pub ];
+      # sshPubKeyFiles = [ ./users/keys/bas-laptop.pub ./users/keys/bas-desktop.pub ];
 
       ########################################################
       ## Optional per-user secrets (via sops-nix)
@@ -175,10 +201,8 @@
       # envFile = ./users/env/bas.nix;
 
       roles = {
-        # Example of your own reusable Home Manager role
-        bas.enable = true;
-
-        # Example dev tool role (see home/roles/dev.nix)
+        # Example dev tool role (see home/roles/dev.nix).
+        # You can keep this on or off; it is safe either way.
         dev.enable = true;
 
         # Defaults to `true` if omitted
@@ -189,7 +213,7 @@
         ##
         ## This is separate from `users.bas.secrets` above:
         ##
-        ## - `users.bas.secrets`  → what secrets exist, how
+        ## - `users.bas.secrets` → what secrets exist, how
         ##   they are stored (sops-nix, password hash, files).
         ##
         ## - roles.secrets.enable → whether this user should
@@ -200,15 +224,19 @@
         ########################################################
         ## Dotfiles ("head") role
         ##
-        ## This role mounts your dotfiles repo into $HOME.
-        ## Two modes:
-        ##   - Pinned mode: through flake inputs (reproducible)
-        ##   - Git mode: clone/pull on activation (non-reproducible)
+        ## This is useful, but it is not required for your first
+        ## successful install.
         ##
-        ## The template enables Git mode by default as a demo.
+        ## Recommended learning order:
+        ##   1. get one machine working
+        ##   2. then choose a dotfiles strategy
+        ##
+        ## Two source models exist:
+        ##   - Pinned source via flake input (recommended later)
+        ##   - Git fallback via clone/pull on activation
         ########################################################
-        dotfiles = {
-          enable = true;
+        # dotfiles = {
+        #   enable = true;
 
           ####################################################
           ## PINNED MODE (reproducible; uses flake input)
@@ -217,13 +245,13 @@
           ## e.g.:
           ##
           ##   dotfilesSources = {
-          ##     bas = inputs.bas-dotfiles;
+          ##     bas = inputs.my-dotfiles;
           ##   };
           ##
           ## and a flake input:
           ##
-          ##   bas-dotfiles = {
-          ##     url = "github:DarkBones/dotfiles";
+          ##   my-dotfiles = {
+          ##     url = "github:YourUserName/dotfiles";
           ##     flake = false;
           ##   };
           ##
@@ -233,7 +261,7 @@
           ## in `dotfilesSources`. If that lookup succeeds,
           ## pinned mode is used.
           ####################################################
-          # sourceKey = "bas"; # defaults to home.username if omitted
+        #   sourceKey = "bas"; # defaults to home.username if omitted
 
           ####################################################
           ## GIT MODE (NON-REPRODUCIBLE, but easy to start with)
@@ -243,29 +271,30 @@
           ##   entry exists, OR
           ## - `sourceKey` is set but doesn't resolve in dotfilesSources.
           ##
-          ## By default this template config will pull *your*
-          ## dotfiles repo as a demo.
+          ## Good as a fallback. Not the ideal long-term setup.
+          ##
+          ## Replace the placeholder repo before enabling.
           ##
           ## `dir` may be:
           ##   - relative to $HOME, e.g. "dotfiles" or "Developer/dotfiles"
           ##   - home-relative, e.g. "~/Developer/dotfiles"
           ##   - absolute, e.g. "/home/alice/Developer/dotfiles"
           ####################################################
-          repo = "https://github.com/DarkBones/dotfiles.git";
-          dir = "Developer/dotfiles";
-          branch = "stable";
-          sparse = [ "nvim" "zsh" ];
+        #   repo = "https://github.com/YourUserName/dotfiles.git";
+        #   dir = "Developer/dotfiles";
+        #   branch = "main";
+        #   sparse = [ "nvim" "zsh" ];
 
           ####################################################
           ## Shared settings for both modes:
           ## map $HOME/<target> → <path inside repo>
           ####################################################
-          linkMap = {
-            ".config/nvim" = "nvim/.config/nvim";
-            ".zsh" = "zsh/.zsh";
-            ".zshrc" = "zsh/.zshrc";
-          };
-        };
+        #   linkMap = {
+        #     ".config/nvim" = "nvim/.config/nvim";
+        #     ".zsh" = "zsh/.zsh";
+        #     ".zshrc" = "zsh/.zshrc";
+        #   };
+        # };
       };
     };
 

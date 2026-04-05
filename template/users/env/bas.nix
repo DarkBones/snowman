@@ -6,12 +6,16 @@ let
     else
       "";
 
-  vars = {
+  vars = rec {
     EDITOR = "nvim";
     LANG = "en_US.UTF-8";
 
-    FLAKE = "$HOME/Developer/snowman";
-    SNOWMAN_FLAKE = "$HOME/snowman-config";
+    # Example paths. Replace these if you actually use them.
+    SNOWMAN_BASE_PATH = "$HOME/Developer/snowman";
+    SNOWMAN_CONFIG_PATH = "$HOME/snowman-config";
+
+    # Used by the `snowman` helper to override which body repo flake it targets.
+    SNOWMAN_FLAKE = SNOWMAN_CONFIG_PATH;
 
     TEST_SECRET_PATH = maybe "test_secret";
   };
