@@ -1,4 +1,4 @@
-{ lib, pkgs, pkgsUnstable, dotfilesSources, inv, currentHost, ... }:
+{ lib, pkgs, pkgsUnstable, dotfilesSources, inv, currentHost, config, ... }:
 let
   hasHost = builtins.hasAttr currentHost inv.hosts;
 
@@ -12,6 +12,7 @@ let
     "host-secrets-from-inventory.nix"
     "sops.nix"
     "compat.nix"
+    "dotfiles-mode.nix"
   ];
 
   nixFiles = builtins.filter (name:
@@ -31,9 +32,14 @@ in {
     ./home/from-inventory.nix
     ./users
     ./compat.nix
+    ./dotfiles-mode.nix
   ] ++ moduleFiles;
 } // lib.optionalAttrs hasHost {
-  home-manager.extraSpecialArgs = { inherit pkgsUnstable dotfilesSources; };
+  home-manager.extraSpecialArgs = {
+    inherit pkgsUnstable dotfilesSources;
+    snowmanDotfilesMode = config.snowman.dotfiles.mode;
+    snowmanDotfilesIsDev = config.snowman.dotfiles.isDev;
+  };
 
   environment.systemPackages = (with pkgs; [ git age ])
     ++ [ pkgsUnstable.ssh-to-age ];
