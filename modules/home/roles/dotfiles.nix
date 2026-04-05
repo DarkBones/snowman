@@ -139,6 +139,7 @@ in {
           REPO=${lib.escapeShellArg cfg.repo}
           BRANCH=${lib.escapeShellArg cfg.branch}
           DIR=${lib.escapeShellArg cfg.dir}
+          HOME_DIR=${lib.escapeShellArg config.home.homeDirectory}
 
           if [ -z "$REPO" ]; then
             echo "[dotfiles] WARNING: roles.dotfiles.repo is empty and no sourceKey is set; skipping."
@@ -147,8 +148,18 @@ in {
 
           git="${pkgs.git}/bin/git"
 
-          # Work in $HOME/<dir>
-          DIR_REAL="$HOME/$DIR"
+          case "$DIR" in
+            "~/"*)
+              DIR_REAL="$HOME_DIR/''${DIR#~/}"
+              ;;
+            /*)
+              DIR_REAL="$DIR"
+              ;;
+            *)
+              DIR_REAL="$HOME_DIR/$DIR"
+              ;;
+          esac
+
           mkdir -p "$DIR_REAL"
 
           update_repo() {
