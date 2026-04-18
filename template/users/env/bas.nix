@@ -1,10 +1,7 @@
 { osConfig, lib, ... }:
 let
-  maybe = name:
-    if lib.hasAttr name osConfig.sops.secrets then
-      osConfig.sops.secrets.${name}.path
-    else
-      "";
+  maybe =
+    name: if lib.hasAttr name osConfig.sops.secrets then osConfig.sops.secrets.${name}.path else "";
 
   vars = rec {
     EDITOR = "nvim";
@@ -19,7 +16,8 @@ let
 
     TEST_SECRET_PATH = maybe "test_secret";
   };
-in {
+in
+{
   home.sessionVariables = vars;
 
   systemd.user.sessionVariables = vars;

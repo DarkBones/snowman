@@ -1,4 +1,9 @@
-{ inv, currentHost, lib, ... }:
+{
+  inv,
+  currentHost,
+  lib,
+  ...
+}:
 let
   hasHost = builtins.hasAttr currentHost inv.hosts;
   host = if hasHost then inv.hosts.${currentHost} else { };
@@ -23,7 +28,8 @@ let
   };
 
   hostSecrets = if secretsCfg == null then { } else lib.mapAttrs mkSecret items;
-in {
+in
+{
   config = lib.mkMerge [
     (lib.mkIf (hasHost && secretsCfg != null) {
       snowman.hostSecrets = hostSecrets;
@@ -33,13 +39,11 @@ in {
       assertions = [
         {
           assertion = !hasHost || secretsCfg == null || (secretsCfg ? sopsFile);
-          message =
-            "Host ${currentHost}: secrets.sopsFile must be set when secrets.items is used.";
+          message = "Host ${currentHost}: secrets.sopsFile must be set when secrets.items is used.";
         }
         {
           assertion = !hasHost || secretsCfg == null || (items != { });
-          message =
-            "Host ${currentHost}: secrets.items must not be empty when secrets is defined.";
+          message = "Host ${currentHost}: secrets.items must not be empty when secrets is defined.";
         }
       ];
     }

@@ -1,4 +1,5 @@
-{ ... }: {
+{ ... }:
+{
   config = {
     # Prevents low entropy conditions during first boot
     services.haveged.enable = true;

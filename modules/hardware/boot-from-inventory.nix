@@ -1,11 +1,17 @@
-{ lib, inv, currentHost, ... }:
+{
+  lib,
+  inv,
+  currentHost,
+  ...
+}:
 let
   hasHost = builtins.hasAttr currentHost inv.hosts;
   host = if hasHost then inv.hosts.${currentHost} else { };
   hasHw = hasHost && (host ? hardware);
   boot = if hasHw then host.hardware.boot else { };
   fw = boot.firmware or null;
-in {
+in
+{
   config = lib.mkMerge [
     # Explicit opt-out
     (lib.mkIf (fw == "none") {

@@ -1,10 +1,17 @@
-{ lib, config, pkgs, currentHost, ... }:
+{
+  lib,
+  config,
+  pkgs,
+  currentHost,
+  ...
+}:
 let
   cfg = config.roles.snowman;
   username = config.home.username;
   configName = "${username}@${currentHost}";
   isDarwin = pkgs.stdenv.isDarwin;
-in {
+in
+{
   options.roles.snowman = {
     enable = lib.mkEnableOption "Snowman CLI for standalone home-manager";
     flakePath = lib.mkOption {

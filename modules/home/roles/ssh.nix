@@ -1,7 +1,16 @@
-{ lib, config, pkgs, ... }:
-let cfg = config.roles.ssh;
-in {
-  options.roles.ssh.enable = (lib.mkEnableOption "SSH role") // { default = true; };
+{
+  lib,
+  config,
+  pkgs,
+  ...
+}:
+let
+  cfg = config.roles.ssh;
+in
+{
+  options.roles.ssh.enable = (lib.mkEnableOption "SSH role") // {
+    default = true;
+  };
 
   config = lib.mkIf cfg.enable {
     home.activation.ensureSshKey = lib.hm.dag.entryAfter [ "writeBoundary" ] ''

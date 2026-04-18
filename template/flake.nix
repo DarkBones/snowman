@@ -34,7 +34,15 @@
     # };
   };
 
-  outputs = { self, nixpkgs, home-manager, sops-nix, snowman, ... }@inputs:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      home-manager,
+      sops-nix,
+      snowman,
+      ...
+    }@inputs:
     let
       lib = nixpkgs.lib;
 
@@ -52,33 +60,45 @@
       # };
       dotfilesSources = { };
 
-      makePkgs = system:
+      makePkgs =
+        system:
         import nixpkgs {
           inherit system;
           config.allowUnfree = true;
         };
-      makePkgsUnstable = system:
+      makePkgsUnstable =
+        system:
         import inputs.nixpkgs-unstable {
           inherit system;
           config.allowUnfree = true;
         };
 
       mkNixosSpecialArgs = name: attrs: {
-        inherit home-manager inv sops-nix dotfilesSources;
+        inherit
+          home-manager
+          inv
+          sops-nix
+          dotfilesSources
+          ;
         pkgsUnstable = makePkgsUnstable attrs.system;
         modulesPath = "${nixpkgs}/nixos/modules";
         currentHost = name;
         sopsConfigPath = ./.sops.yaml;
         networkSecretsPath = ./networks/secrets.yml;
-        extraHomeImports = [ ./home/roles ./home/overrides ];
+        extraHomeImports = [
+          ./home/roles
+          ./home/overrides
+        ];
       };
 
-      mkHost = name: attrs:
+      mkHost =
+        name: attrs:
         let
           host = inv.hosts.${name};
           hostName = host.hostname or name;
           hwFile = ./hosts/${hostName}-hardware-configuration.nix;
-        in lib.nixosSystem {
+        in
+        lib.nixosSystem {
           system = attrs.system;
           specialArgs = mkNixosSpecialArgs name attrs;
           modules = [
@@ -91,46 +111,64 @@
             # This keeps the first install safe:
             # - import hardware if it exists
             # - fail with a clear message if you forgot to import it
-            ({ lib, ... }: {
-              imports = lib.optional (builtins.pathExists hwFile) hwFile;
+            (
+              { lib, ... }:
+              {
+                imports = lib.optional (builtins.pathExists hwFile) hwFile;
 
-              assertions = [{
-                assertion = builtins.pathExists hwFile;
-                message = ''
-                  ❌ Snowman: Hardware configuration missing for host "${name}"
-                     (hostname "${hostName}").
+                assertions = [
+                  {
+                    assertion = builtins.pathExists hwFile;
+                    message = ''
+                      ❌ Snowman: Hardware configuration missing for host "${name}"
+                         (hostname "${hostName}").
 
-                  Expected file:
-                    hosts/${hostName}-hardware-configuration.nix
+                      Expected file:
+                        hosts/${hostName}-hardware-configuration.nix
 
-                  Fix:
-                    On the machine this NixOS install is running on, execute:
+                      Fix:
+                        On the machine this NixOS install is running on, execute:
 
-                      ./bin/snowman-import-hardware ${name}
+                          ./bin/snowman-import-hardware ${name}
 
-                    Then re-run:
+                        Then re-run:
 
-                      sudo nixos-rebuild switch --flake .#${name}
-                '';
-              }];
-            })
-          ] ++ (attrs.extraModules or [ ]);
+                          sudo nixos-rebuild switch --flake .#${name}
+                    '';
+                  }
+                ];
+              }
+            )
+          ]
+          ++ (attrs.extraModules or [ ]);
         };
 
       # -------- Home Manager configs --------
 
-      mkHome = hostName: user:
+      mkHome =
+        hostName: user:
         let
           host = inv.hosts.${hostName};
           system = host.system or "x86_64-linux";
+          isDarwin = lib.hasSuffix "darwin" system;
           cfgName = "${user}@${hostName}";
-        in {
-          name = cfgName;
+
+          # Resolve actual local username (for macOS aliases)
+          localAccountNames = host.localAccountNames or { };
+          actualUsername =
+            if builtins.hasAttr user localAccountNames then localAccountNames.${user} else user;
+          cfgNameActual = "${actualUsername}@${hostName}";
+
           value = home-manager.lib.homeManagerConfiguration {
             pkgs = makePkgs system;
 
             extraSpecialArgs = {
-              inherit inputs inv sops-nix dotfilesSources;
+              inherit
+                inputs
+                inv
+                sops-nix
+                dotfilesSources
+                ;
               pkgsUnstable = makePkgsUnstable system;
               currentHost = hostName;
               sopsConfigPath = ./.sops.yaml;
@@ -139,29 +177,44 @@
 
             modules = [
               # Ensure HM knows which user this config is for
-              ({ lib, ... }: {
-                home.username = lib.mkDefault user;
-                home.homeDirectory = lib.mkDefault "/home/${user}";
-              })
+              (
+                { lib, ... }:
+                {
+                  home.username = lib.mkDefault actualUsername;
+                  home.homeDirectory = lib.mkDefault (
+                    if isDarwin then "/Users/${actualUsername}" else "/home/${actualUsername}"
+                  );
+                }
+              )
 
-              ({ lib, currentHost, ... }:
+              (
+                { lib, currentHost, ... }:
                 let
                   hostCfg = inv.hosts.${currentHost};
                   userCfg = inv.users.${user};
 
                   userRoles = userCfg.roles or { };
-                  enabledUserRoles = lib.filterAttrs
-                    (_: roleCfg: roleCfg ? enable && roleCfg.enable) userRoles;
+                  enabledUserRoles = lib.filterAttrs (_: roleCfg: roleCfg ? enable && roleCfg.enable) userRoles;
 
                   hostRoleFilter = hostCfg.availableRoles or null;
 
-                  finalRoles = if hostRoleFilter == null then
-                    enabledUserRoles
-                  else
-                    lib.filterAttrs
-                    (roleName: _: lib.elem roleName hostRoleFilter)
-                    enabledUserRoles;
-                in { roles = finalRoles; })
+                  finalRoles =
+                    if hostRoleFilter == null then
+                      enabledUserRoles
+                    else
+                      lib.filterAttrs (roleName: _: lib.elem roleName hostRoleFilter) enabledUserRoles;
+                in
+                {
+                  # Ensure sourceKey stays the inventory name even if home.username is local name
+                  roles =
+                    finalRoles
+                    // (lib.optionalAttrs (finalRoles ? dotfiles) {
+                      dotfiles = finalRoles.dotfiles // {
+                        sourceKey = lib.mkDefault user;
+                      };
+                    });
+                }
+              )
 
               snowman.homeModules.default
               ./home
@@ -169,16 +222,31 @@
               ./home/overrides
             ];
           };
-        };
+        in
+        [
+          {
+            name = cfgName;
+            inherit value;
+          }
+        ]
+        ++ (lib.optional (cfgName != cfgNameActual) {
+          name = cfgNameActual;
+          inherit value;
+        });
 
-      homeConfigurations = lib.listToAttrs (lib.concatMap (hostName:
-        let
-          host = inv.hosts.${hostName};
-          users = host.users or (builtins.attrNames inv.users);
-        in map (user: mkHome hostName user) users)
-        (builtins.attrNames inv.hosts));
+      homeConfigurations = lib.listToAttrs (
+        lib.concatMap (
+          hostName:
+          let
+            host = inv.hosts.${hostName};
+            users = host.users or (builtins.attrNames inv.users);
+          in
+          lib.concatMap (user: mkHome hostName user) users
+        ) (builtins.attrNames inv.hosts)
+      );
 
-    in {
+    in
+    {
       nixosConfigurations = lib.mapAttrs mkHost inv.hosts;
       inherit homeConfigurations;
     };

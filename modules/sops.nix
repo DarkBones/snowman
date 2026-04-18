@@ -1,4 +1,12 @@
-{ lib, pkgs, sops-nix, config, inv, currentHost, networkSecretsPath ? null, ...
+{
+  lib,
+  pkgs,
+  sops-nix,
+  config,
+  inv,
+  currentHost,
+  networkSecretsPath ? null,
+  ...
 }:
 let
   hasHost = builtins.hasAttr currentHost inv.hosts;
@@ -9,41 +17,49 @@ let
   usbConfigured = usbCfg.enable or false;
 
   # Users that actually have a `secrets.sopsFile` configured
-  usersWithSecrets =
-    lib.filterAttrs (name: u: lib.elem name hostUsers && (u ? secrets.sopsFile))
-    inv.users;
+  usersWithSecrets = lib.filterAttrs (
+    name: u: lib.elem name hostUsers && (u ? secrets.sopsFile)
+  ) inv.users;
 
   isRotated = config.snowman.isRotated;
   usbMode = usbConfigured && (!isRotated);
 
-  mkSecretsForUser = userName:
+  mkSecretsForUser =
+    userName:
     let
       u = inv.users.${userName};
       sopsFile = u.secrets.sopsFile;
       secretKeys = u.secrets.keys or [ ];
       passwordKey = u.secrets.userPasswordHashKey or null;
 
-      mkValue = key:
-        ({
-          inherit sopsFile;
-          format = "yaml";
-          key = key;
-          owner = userName;
-          group = userName;
-          mode = "0400";
-        }
-        # If this key is used as `userPasswordHashKey`, we need it
-        # in /run/secrets-for-users so the users module can read it.
+      mkValue =
+        key:
+        (
+          {
+            inherit sopsFile;
+            format = "yaml";
+            key = key;
+            owner = userName;
+            group = userName;
+            mode = "0400";
+          }
+          # If this key is used as `userPasswordHashKey`, we need it
+          # in /run/secrets-for-users so the users module can read it.
           // lib.optionalAttrs (passwordKey != null && key == passwordKey) {
             neededForUsers = true;
-          });
-    in builtins.listToAttrs (map (key: {
-      name = key;
-      value = mkValue key;
-    }) secretKeys);
+          }
+        );
+    in
+    builtins.listToAttrs (
+      map (key: {
+        name = key;
+        value = mkValue key;
+      }) secretKeys
+    );
 
-  perUserSecrets = lib.foldl' (acc: name: acc // mkSecretsForUser name) { }
-    (builtins.attrNames usersWithSecrets);
+  perUserSecrets = lib.foldl' (acc: name: acc // mkSecretsForUser name) { } (
+    builtins.attrNames usersWithSecrets
+  );
 
   networksCfg = inv.networks or { };
 
@@ -52,43 +68,50 @@ let
   #
   # The data lives in networks/secrets.yml (networkSecretsPath), and
   # passwordSecret tells us the YAML key (e.g. "home.password").
-  networkSecrets = if networkSecretsPath == null then
-    { }
-  else
-    lib.foldl' (acc: netName:
-      let net = networksCfg.${netName};
-      in if net ? passwordSecret then
-        acc // {
-          "wifi-${netName}-password" = {
-            sopsFile = networkSecretsPath;
-            format = "yaml";
-            key = net.passwordSecret; # e.g. "home.password"
-            owner = "root";
-            group = "root";
-            mode = "0400";
-          };
-        }
-      else
-        acc) { } (builtins.attrNames networksCfg);
+  networkSecrets =
+    if networkSecretsPath == null then
+      { }
+    else
+      lib.foldl' (
+        acc: netName:
+        let
+          net = networksCfg.${netName};
+        in
+        if net ? passwordSecret then
+          acc
+          // {
+            "wifi-${netName}-password" = {
+              sopsFile = networkSecretsPath;
+              format = "yaml";
+              key = net.passwordSecret; # e.g. "home.password"
+              owner = "root";
+              group = "root";
+              mode = "0400";
+            };
+          }
+        else
+          acc
+      ) { } (builtins.attrNames networksCfg);
 
   hostSecrets = config.snowman.hostSecrets or { };
   allSecrets = hostSecrets // perUserSecrets // networkSecrets;
 
   sopsPasswordKeyAssertions = lib.mapAttrsToList (name: u: {
-    assertion = !(u ? secrets.userPasswordHashKey)
+    assertion =
+      !(u ? secrets.userPasswordHashKey)
       || lib.elem u.secrets.userPasswordHashKey (u.secrets.keys or [ ]);
     message = "User ${name}: secrets.userPasswordHashKey '${
-        u.secrets.userPasswordHashKey or "«unset»"
-      }' not found in secrets.keys (${toString (u.secrets.keys or [ ])}).";
+      u.secrets.userPasswordHashKey or "«unset»"
+    }' not found in secrets.keys (${toString (u.secrets.keys or [ ])}).";
   }) inv.users;
 
   networkPasswordAssertions = lib.mapAttrsToList (netName: net: {
     assertion = !(net ? passwordSecret) || networkSecretsPath != null;
-    message =
-      "Network ${netName}: passwordSecret is set but networkSecretsPath is null.";
+    message = "Network ${netName}: passwordSecret is set but networkSecretsPath is null.";
   }) networksCfg;
 
-in {
+in
+{
   imports = [ sops-nix.nixosModules.sops ];
 
   config = lib.mkIf (allSecrets != { }) {
@@ -100,7 +123,7 @@ in {
         keyFile = "/var/lib/sops-nix/age.key";
 
         # If we have rotated (isRotated = true), usbMode becomes false.
-        # generateKey becomes true. 
+        # generateKey becomes true.
         # Sops-nix will then find the SSH host key automatically.
         generateKey = !usbMode;
       };

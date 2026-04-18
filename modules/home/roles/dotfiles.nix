@@ -1,23 +1,28 @@
-{ lib, config, pkgs, dotfilesSources ? { }, ... }:
+{
+  lib,
+  config,
+  pkgs,
+  dotfilesSources ? { },
+  ...
+}:
 let
   cfg = config.roles.dotfiles;
 
-  hasSourceKey = cfg ? sourceKey && cfg.sourceKey != null
-    && builtins.hasAttr cfg.sourceKey dotfilesSources;
+  hasSourceKey =
+    cfg ? sourceKey && cfg.sourceKey != null && builtins.hasAttr cfg.sourceKey dotfilesSources;
 
-  sourcePath = if hasSourceKey then
-    builtins.getAttr cfg.sourceKey dotfilesSources
-  else
-    null;
+  sourcePath = if hasSourceKey then builtins.getAttr cfg.sourceKey dotfilesSources else null;
 
   # Heuristic: detect SSH-style git remotes.
   # Covers:
   #   - ssh://host/path
   #   - user@host:org/repo.git   (incl. git@github.com:org/repo.git)
-  isSshRemote = cfg.repo != "" && (lib.hasPrefix "ssh://" cfg.repo
-    || (builtins.match "^[^@]+@[^:]+:.*" cfg.repo != null));
+  isSshRemote =
+    cfg.repo != ""
+    && (lib.hasPrefix "ssh://" cfg.repo || (builtins.match "^[^@]+@[^:]+:.*" cfg.repo != null));
 
-in {
+in
+{
   options.roles.dotfiles = {
     enable = lib.mkEnableOption "Dotfiles role";
 
@@ -64,45 +69,51 @@ in {
     };
   };
 
-  config = lib.mkIf cfg.enable (lib.mkMerge [
+  config = lib.mkIf cfg.enable (
+    lib.mkMerge [
 
-    # -------------------------------------------------------------------------
-    # Shared: tooling + dependency declaration
-    # -------------------------------------------------------------------------
-    {
-      # Tooling dotfiles needs in git mode
-      home.packages = with pkgs; [ git openssh inetutils ];
+      # -------------------------------------------------------------------------
+      # Shared: tooling + dependency declaration
+      # -------------------------------------------------------------------------
+      {
+        # Tooling dotfiles needs in git mode
+        home.packages = with pkgs; [
+          git
+          openssh
+          inetutils
+        ];
 
-      # Dotfiles may require SSH; default it on, but allow explicit override.
-      roles.ssh.enable = lib.mkDefault true;
+        # Dotfiles may require SSH; default it on, but allow explicit override.
+        roles.ssh.enable = lib.mkDefault true;
 
-      assertions = [{
-        assertion =
-          # pinned mode -> no ssh needed
-          hasSourceKey
-          # git mode not configured -> no ssh needed
-          || cfg.repo == ""
-          # git mode with https -> ssh role optional
-          || (!isSshRemote)
-          # git mode with ssh -> ssh role must be enabled
-          || (config.roles.ssh.enable or false);
-        message = ''
-          roles.dotfiles is configured to use an SSH git remote (${cfg.repo}),
-          but roles.ssh.enable is false.
+        assertions = [
+          {
+            assertion =
+              # pinned mode -> no ssh needed
+              hasSourceKey
+              # git mode not configured -> no ssh needed
+              || cfg.repo == ""
+              # git mode with https -> ssh role optional
+              || (!isSshRemote)
+              # git mode with ssh -> ssh role must be enabled
+              || (config.roles.ssh.enable or false);
+            message = ''
+              roles.dotfiles is configured to use an SSH git remote (${cfg.repo}),
+              but roles.ssh.enable is false.
 
-          Fix:
-            - set roles.ssh.enable = true; OR
-            - use an https remote for roles.dotfiles.repo.
-        '';
-      }];
-    }
+              Fix:
+                - set roles.ssh.enable = true; OR
+                - use an https remote for roles.dotfiles.repo.
+            '';
+          }
+        ];
+      }
 
-    # -------------------------------------------------------------------------
-    # Reproducible mode: use flake input (store path)
-    # -------------------------------------------------------------------------
-    (lib.mkIf hasSourceKey {
-      home.activation.dotfilesSync =
-        lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+      # -------------------------------------------------------------------------
+      # Reproducible mode: use flake input (store path)
+      # -------------------------------------------------------------------------
+      (lib.mkIf hasSourceKey {
+        home.activation.dotfilesSync = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
           set -euo pipefail
 
           REPO_PATH=${lib.escapeShellArg (toString sourcePath)}
@@ -115,23 +126,24 @@ in {
           echo "[dotfiles] Using pinned dotfiles from $REPO_PATH (flake input)."
 
           # Symlink targets from linkMap
-          ${lib.concatStringsSep "\n" (lib.mapAttrsToList (target: src: ''
-            echo "[dotfiles] Linking ${target} -> ${src}"
-            mkdir -p "$(dirname "$HOME/${target}")"
-            rm -rf "$HOME/${target}"
-            ln -s "$REPO_PATH/${src}" "$HOME/${target}"
-          '') cfg.linkMap)}
+          ${lib.concatStringsSep "\n" (
+            lib.mapAttrsToList (target: src: ''
+              echo "[dotfiles] Linking ${target} -> ${src}"
+              mkdir -p "$(dirname "$HOME/${target}")"
+              rm -rf "$HOME/${target}"
+              ln -s "$REPO_PATH/${src}" "$HOME/${target}"
+            '') cfg.linkMap
+          )}
         '';
-    })
+      })
 
-    # -------------------------------------------------------------------------
-    # Git mode: fall back to git clone/pull at activation time
-    # -------------------------------------------------------------------------
-    (lib.mkIf (!hasSourceKey) {
-      programs.ssh.enable = true;
+      # -------------------------------------------------------------------------
+      # Git mode: fall back to git clone/pull at activation time
+      # -------------------------------------------------------------------------
+      (lib.mkIf (!hasSourceKey) {
+        programs.ssh.enable = true;
 
-      home.activation.dotfilesSync =
-        lib.hm.dag.entryAfter [ "writeBoundary" ] ''
+        home.activation.dotfilesSync = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
           set -euo pipefail
 
           export PATH="${pkgs.openssh}/bin:${pkgs.git}/bin:$PATH"
@@ -173,9 +185,7 @@ in {
             fi
 
             if [ ${toString (cfg.sparse != [ ])} = "1" ]; then
-              "$git" -C "$DIR_REAL" sparse-checkout set ${
-                lib.escapeShellArgs cfg.sparse
-              }
+              "$git" -C "$DIR_REAL" sparse-checkout set ${lib.escapeShellArgs cfg.sparse}
             fi
 
             "$git" -C "$DIR_REAL" switch "$BRANCH" || \
@@ -200,13 +210,16 @@ in {
           fi
 
           # Symlink targets from linkMap
-          ${lib.concatStringsSep "\n" (lib.mapAttrsToList (target: src: ''
-            echo "[dotfiles] Linking ${target} -> ${src}"
-            mkdir -p "$(dirname "$HOME/${target}")"
-            rm -rf "$HOME/${target}"
-            ln -s "$DIR_REAL/${src}" "$HOME/${target}"
-          '') cfg.linkMap)}
+          ${lib.concatStringsSep "\n" (
+            lib.mapAttrsToList (target: src: ''
+              echo "[dotfiles] Linking ${target} -> ${src}"
+              mkdir -p "$(dirname "$HOME/${target}")"
+              rm -rf "$HOME/${target}"
+              ln -s "$DIR_REAL/${src}" "$HOME/${target}"
+            '') cfg.linkMap
+          )}
         '';
-    })
-  ]);
+      })
+    ]
+  );
 }

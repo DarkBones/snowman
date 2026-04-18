@@ -1,1 +1,4 @@
-{ ... }: { imports = [ ./from-inventory.nix ]; }
+{ ... }:
+{
+  imports = [ ./from-inventory.nix ];
+}

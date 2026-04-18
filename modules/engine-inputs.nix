@@ -1,4 +1,5 @@
-{ lib, ... }: {
+{ lib, ... }:
+{
   options.snowman = {
     isRotated = lib.mkOption {
       type = lib.types.bool;

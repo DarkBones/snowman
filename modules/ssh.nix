@@ -1,9 +1,15 @@
-{ inv, currentHost, lib, ... }:
+{
+  inv,
+  currentHost,
+  lib,
+  ...
+}:
 let
   hasHost = builtins.hasAttr currentHost inv.hosts;
   host = if hasHost then inv.hosts.${currentHost} else { };
   allowed = host.users or [ ];
-in {
+in
+{
   config = lib.mkMerge [
     (lib.mkIf hasHost {
       networking.firewall = {
@@ -14,10 +20,12 @@ in {
       services.openssh = {
         enable = true;
         openFirewall = true;
-        hostKeys = [{
-          path = "/etc/ssh/ssh_host_ed25519_key";
-          type = "ed25519";
-        }];
+        hostKeys = [
+          {
+            path = "/etc/ssh/ssh_host_ed25519_key";
+            type = "ed25519";
+          }
+        ];
 
         settings = {
           PermitRootLogin = "no";
@@ -43,11 +51,12 @@ in {
     })
 
     {
-      assertions = [{
-        assertion = hasHost;
-        message =
-          "Inventory: host ${currentHost} not found in inv.hosts (ssh.nix)";
-      }];
+      assertions = [
+        {
+          assertion = hasHost;
+          message = "Inventory: host ${currentHost} not found in inv.hosts (ssh.nix)";
+        }
+      ];
     }
   ];
 }

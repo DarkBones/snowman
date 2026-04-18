@@ -1,4 +1,5 @@
-{ pkgsUnstable, config, ... }: {
+{ pkgsUnstable, config, ... }:
+{
   imports = [
     ./overrides/default.nix
     ./roles/ssh.nix

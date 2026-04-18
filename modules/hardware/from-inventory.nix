@@ -1,8 +1,14 @@
-{ inv, lib, currentHost, ... }:
+{
+  inv,
+  lib,
+  currentHost,
+  ...
+}:
 let
   hasHost = builtins.hasAttr currentHost inv.hosts;
   host = if hasHost then inv.hosts.${currentHost} else { };
-in {
+in
+{
   config = lib.mkMerge [
     (lib.mkIf (hasHost && (host ? hostname)) {
       networking.hostName = host.hostname;
@@ -14,8 +20,7 @@ in {
       assertions = [
         {
           assertion = hasHost;
-          message =
-            "Inventory: host ${currentHost} not found in inv.hosts (hardware.from-inventory.nix)";
+          message = "Inventory: host ${currentHost} not found in inv.hosts (hardware.from-inventory.nix)";
         }
         {
           assertion = !hasHost || (host ? hostname);

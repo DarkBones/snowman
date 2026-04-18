@@ -47,6 +47,11 @@
     vm = {
       # Replace this with your first real machine.
       hostname = "vm-snowman";
+      # Optional: Map inventory username to local machine username
+      # (Useful on macOS where your local name might be "Bas" but inventory is "bas")
+      localAccountNames = {
+        bas = "Bas";
+      };
       system = "x86_64-linux";
       users = [ "bas" ];
 
@@ -238,57 +243,57 @@
         # dotfiles = {
         #   enable = true;
 
-          ####################################################
-          ## PINNED MODE (reproducible; uses flake input)
-          ##
-          ## Requires your body flake to define dotfilesSources,
-          ## e.g.:
-          ##
-          ##   dotfilesSources = {
-          ##     bas = inputs.my-dotfiles;
-          ##   };
-          ##
-          ## and a flake input:
-          ##
-          ##   my-dotfiles = {
-          ##     url = "github:YourUserName/dotfiles";
-          ##     flake = false;
-          ##   };
-          ##
-          ## When active, Snowman will try to resolve:
-          ##   - `sourceKey` if set
-          ##   - otherwise `home.username`
-          ## in `dotfilesSources`. If that lookup succeeds,
-          ## pinned mode is used.
-          ####################################################
+        ####################################################
+        ## PINNED MODE (reproducible; uses flake input)
+        ##
+        ## Requires your body flake to define dotfilesSources,
+        ## e.g.:
+        ##
+        ##   dotfilesSources = {
+        ##     bas = inputs.my-dotfiles;
+        ##   };
+        ##
+        ## and a flake input:
+        ##
+        ##   my-dotfiles = {
+        ##     url = "github:YourUserName/dotfiles";
+        ##     flake = false;
+        ##   };
+        ##
+        ## When active, Snowman will try to resolve:
+        ##   - `sourceKey` if set
+        ##   - otherwise `home.username`
+        ## in `dotfilesSources`. If that lookup succeeds,
+        ## pinned mode is used.
+        ####################################################
         #   sourceKey = "bas"; # defaults to home.username if omitted
 
-          ####################################################
-          ## GIT MODE (NON-REPRODUCIBLE, but easy to start with)
-          ##
-          ## Used when no usable pinned source can be found:
-          ## - `sourceKey` is unset AND no dotfilesSources[home.username]
-          ##   entry exists, OR
-          ## - `sourceKey` is set but doesn't resolve in dotfilesSources.
-          ##
-          ## Good as a fallback. Not the ideal long-term setup.
-          ##
-          ## Replace the placeholder repo before enabling.
-          ##
-          ## `dir` may be:
-          ##   - relative to $HOME, e.g. "dotfiles" or "Developer/dotfiles"
-          ##   - home-relative, e.g. "~/Developer/dotfiles"
-          ##   - absolute, e.g. "/home/alice/Developer/dotfiles"
-          ####################################################
+        ####################################################
+        ## GIT MODE (NON-REPRODUCIBLE, but easy to start with)
+        ##
+        ## Used when no usable pinned source can be found:
+        ## - `sourceKey` is unset AND no dotfilesSources[home.username]
+        ##   entry exists, OR
+        ## - `sourceKey` is set but doesn't resolve in dotfilesSources.
+        ##
+        ## Good as a fallback. Not the ideal long-term setup.
+        ##
+        ## Replace the placeholder repo before enabling.
+        ##
+        ## `dir` may be:
+        ##   - relative to $HOME, e.g. "dotfiles" or "Developer/dotfiles"
+        ##   - home-relative, e.g. "~/Developer/dotfiles"
+        ##   - absolute, e.g. "/home/alice/Developer/dotfiles"
+        ####################################################
         #   repo = "https://github.com/YourUserName/dotfiles.git";
         #   dir = "Developer/dotfiles";
         #   branch = "main";
         #   sparse = [ "nvim" "zsh" ];
 
-          ####################################################
-          ## Shared settings for both modes:
-          ## map $HOME/<target> → <path inside repo>
-          ####################################################
+        ####################################################
+        ## Shared settings for both modes:
+        ## map $HOME/<target> → <path inside repo>
+        ####################################################
         #   linkMap = {
         #     ".config/nvim" = "nvim/.config/nvim";
         #     ".zsh" = "zsh/.zsh";

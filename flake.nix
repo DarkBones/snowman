@@ -9,17 +9,21 @@
     sops-nix.url = "github:mic92/sops-nix";
   };
 
-  outputs = inputs@{ self, nixpkgs, ... }: {
-    nixosModules.default = ./modules/default.nix;
-    homeModules.default = ./modules/home;
+  outputs =
+    inputs@{ self, nixpkgs, ... }:
+    {
+      nixosModules.default = ./modules/default.nix;
+      homeModules.default = ./modules/home;
 
-    templates.default = {
-      path = ./template;
-      description = "Default Snowman user configuration";
+      templates.default = {
+        path = ./template;
+        description = "Default Snowman user configuration";
+      };
+
+      formatter.x86_64-linux =
+        let
+          pkgs = import nixpkgs { system = "x86_64-linux"; };
+        in
+        pkgs.nixpkgs-fmt;
     };
-
-    formatter.x86_64-linux =
-      let pkgs = import nixpkgs { system = "x86_64-linux"; };
-      in pkgs.nixpkgs-fmt;
-  };
 }

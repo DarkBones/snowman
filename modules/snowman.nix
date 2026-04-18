@@ -1,7 +1,8 @@
 { pkgs, currentHost, ... }:
 let
   defaultFlakePath = builtins.toString ../.;
-in {
+in
+{
   environment.etc."snowman/flake".text = defaultFlakePath + "\n";
 
   environment.systemPackages = [

@@ -1,4 +1,10 @@
-{ lib, inv, currentHost, sopsConfigPath, ... }:
+{
+  lib,
+  inv,
+  currentHost,
+  sopsConfigPath,
+  ...
+}:
 let
   hasHost = builtins.hasAttr currentHost inv.hosts;
   host = if hasHost then inv.hosts.${currentHost} else { };
@@ -10,14 +16,14 @@ let
 
   hostRe = lib.escapeRegex currentHost;
 
-  isRotated = builtins.match ".*&${hostRe}([^A-Za-z0-9_-]|$).*" sopsContent
-    != null;
+  isRotated = builtins.match ".*&${hostRe}([^A-Za-z0-9_-]|$).*" sopsContent != null;
 
   usbEffective = usbConfigured && (!isRotated);
 
   profiles = host.profiles or [ ];
   isQemuGuest = lib.elem "qemu-guest" profiles;
-in {
+in
+{
   config = lib.mkMerge [
     { snowman.isRotated = isRotated; }
 
@@ -44,8 +50,7 @@ in {
         }
 
         {
-          assertion = !(hasHost && usbConfigured)
-            || (usbCfg ? path && usbCfg ? label && usbCfg ? keyFile);
+          assertion = !(hasHost && usbConfigured) || (usbCfg ? path && usbCfg ? label && usbCfg ? keyFile);
           message = ''
             ❌ Snowman: bootstrap.usb.enable = true on "${currentHost}" but bootstrap.usb.{path,label,keyFile} is incomplete.
           '';

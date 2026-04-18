@@ -1,10 +1,18 @@
-{ lib, pkgs, config, inv, currentHost, ... }:
+{
+  lib,
+  pkgs,
+  config,
+  inv,
+  currentHost,
+  ...
+}:
 let
   hasHost = builtins.hasAttr currentHost inv.hosts;
   host = if hasHost then inv.hosts.${currentHost} else { };
 
   enableCompat = host.compatibility or false;
-in {
+in
+{
   config = lib.mkIf (hasHost && enableCompat) {
     programs.nix-ld.enable = true;
 

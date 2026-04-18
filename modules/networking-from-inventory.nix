@@ -1,11 +1,17 @@
-{ lib, inv, currentHost, config, pkgs, ... }:
+{
+  lib,
+  inv,
+  currentHost,
+  config,
+  pkgs,
+  ...
+}:
 let
   hasHost = builtins.hasAttr currentHost inv.hosts;
   host = if hasHost then inv.hosts.${currentHost} else { };
   wifi = host.wifi or null;
 
-  wifiInterface =
-    if wifi != null && wifi ? interface then wifi.interface else "wlan0";
+  wifiInterface = if wifi != null && wifi ? interface then wifi.interface else "wlan0";
 
   networksCfg = inv.networks or { };
 
@@ -18,21 +24,30 @@ let
   roamingHasNetworks = isRoaming && (wifiNetworks != [ ]);
 
   # Networks with secrets (used by static-wifi + wireless.conf)
-  networksWithPassword =
-    lib.filterAttrs (_: net: net ? passwordSecret) networksCfg;
+  networksWithPassword = lib.filterAttrs (_: net: net ? passwordSecret) networksCfg;
 
-  wifiNetworksWithPassword =
-    lib.filterAttrs (netName: _: lib.elem netName wifiNetworks)
-    networksWithPassword;
+  wifiNetworksWithPassword = lib.filterAttrs (
+    netName: _: lib.elem netName wifiNetworks
+  ) networksWithPassword;
 
-  mkWirelessNetworks = wifiCfg:
-    let netNames = wifiCfg.networks or [ ];
-    in lib.foldl' (acc: netName:
+  mkWirelessNetworks =
+    wifiCfg:
+    let
+      netNames = wifiCfg.networks or [ ];
+    in
+    lib.foldl' (
+      acc: netName:
       let
         net = networksCfg.${netName};
         ssid = net.ssid;
-      in acc // { "${ssid}" = { pskRaw = "ext:psk_${netName}"; }; }) { }
-    netNames;
+      in
+      acc
+      // {
+        "${ssid}" = {
+          pskRaw = "ext:psk_${netName}";
+        };
+      }
+    ) { } netNames;
 
   # Namespace UUID for deterministic NetworkManager connection UUIDs.
   # DO NOT change: would regenerate UUIDs and create duplicate NM profiles.
@@ -41,24 +56,31 @@ let
   # Package the external script (keeps Nix strings small; LSP stays sane)
   nmProfilesScript = pkgs.writeShellApplication {
     name = "snowman-networkmanager-profiles";
-    runtimeInputs = with pkgs; [ coreutils util-linux systemd ];
+    runtimeInputs = with pkgs; [
+      coreutils
+      util-linux
+      systemd
+    ];
     text = builtins.readFile ../scripts/snowman-networkmanager-profiles.sh;
   };
 
   # TSV lines: netName<TAB>ssid<TAB>pskFileOrEmpty
-  nmNetList = lib.concatStringsSep "\n" (map (netName:
-    let
-      net = networksCfg.${netName};
-      ssid = net.ssid;
+  nmNetList = lib.concatStringsSep "\n" (
+    map (
+      netName:
+      let
+        net = networksCfg.${netName};
+        ssid = net.ssid;
 
-      secretName = "wifi-${netName}-password";
-      secretPath = if net ? passwordSecret then
-        config.sops.secrets.${secretName}.path
-      else
-        "";
-    in "${netName}	${ssid}	${toString secretPath}") wifiNetworks);
+        secretName = "wifi-${netName}-password";
+        secretPath = if net ? passwordSecret then config.sops.secrets.${secretName}.path else "";
+      in
+      "${netName}	${ssid}	${toString secretPath}"
+    ) wifiNetworks
+  );
 
-in {
+in
+{
   config = lib.mkMerge [
     # -------------------------------------------------------------------------
     # Static Wi-Fi mode (wpa_supplicant + ext:psk)
@@ -83,31 +105,33 @@ in {
     # -------------------------------------------------------------------------
     # Roaming Wi-Fi via NetworkManager (+ optional provisioning)
     # -------------------------------------------------------------------------
-    (lib.mkIf isRoaming (lib.mkMerge [
-      {
-        networking.useDHCP = lib.mkForce false;
-        networking.networkmanager.enable = true;
-        networking.wireless.enable = false;
-      }
+    (lib.mkIf isRoaming (
+      lib.mkMerge [
+        {
+          networking.useDHCP = lib.mkForce false;
+          networking.networkmanager.enable = true;
+          networking.wireless.enable = false;
+        }
 
-      (lib.mkIf roamingHasNetworks {
-        system.activationScripts."snowman-networkmanager-profiles" = ''
-          set -euo pipefail
+        (lib.mkIf roamingHasNetworks {
+          system.activationScripts."snowman-networkmanager-profiles" = ''
+            set -euo pipefail
 
-          listFile="$(mktemp)"
-          trap 'rm -f "$listFile"' EXIT
+            listFile="$(mktemp)"
+            trap 'rm -f "$listFile"' EXIT
 
-          cat > "$listFile" <<'EOF'
-          ${nmNetList}
-          EOF
+            cat > "$listFile" <<'EOF'
+            ${nmNetList}
+            EOF
 
-          ${nmProfilesScript}/bin/snowman-networkmanager-profiles \
-            ${lib.escapeShellArg nmNamespace} \
-            /etc/NetworkManager/system-connections \
-            "$listFile"
-        '';
-      })
-    ]))
+            ${nmProfilesScript}/bin/snowman-networkmanager-profiles \
+              ${lib.escapeShellArg nmNamespace} \
+              /etc/NetworkManager/system-connections \
+              "$listFile"
+          '';
+        })
+      ]
+    ))
 
     # -------------------------------------------------------------------------
     # Generate /run/secrets/wireless.conf for ext:psk_<net>
@@ -126,19 +150,22 @@ in {
 
         echo "# Generated by Snowman" >> "$outfile"
 
-        ${lib.concatStringsSep "\n" (lib.mapAttrsToList (netName: net:
-          let
-            secretName = "wifi-${netName}-password";
-            secretPath = config.sops.secrets.${secretName}.path;
-          in ''
-            if [ -r ${lib.escapeShellArg secretPath} ]; then
-              echo "psk_${netName}=$(cat ${
-                lib.escapeShellArg secretPath
-              })" >> "$outfile"
-            else
-              echo "[snowman] WARNING: Secret file ${secretPath} for network ${netName} is missing or unreadable." >&2
-            fi
-          '') wifiNetworksWithPassword)}
+        ${lib.concatStringsSep "\n" (
+          lib.mapAttrsToList (
+            netName: net:
+            let
+              secretName = "wifi-${netName}-password";
+              secretPath = config.sops.secrets.${secretName}.path;
+            in
+            ''
+              if [ -r ${lib.escapeShellArg secretPath} ]; then
+                echo "psk_${netName}=$(cat ${lib.escapeShellArg secretPath})" >> "$outfile"
+              else
+                echo "[snowman] WARNING: Secret file ${secretPath} for network ${netName} is missing or unreadable." >&2
+              fi
+            ''
+          ) wifiNetworksWithPassword
+        )}
 
         chown root:root "$outfile"
         chmod 0400 "$outfile"
@@ -151,18 +178,17 @@ in {
     {
       assertions = [
         {
-          assertion = !(hasHost && wifi != null && wifi.mode == "static-wifi")
-            || (wifi.networks or [ ]) != [ ];
+          assertion =
+            !(hasHost && wifi != null && wifi.mode == "static-wifi") || (wifi.networks or [ ]) != [ ];
           message = ''
             Host ${currentHost}: wifi.mode = "static-wifi" but wifi.networks is empty.
           '';
         }
         {
-          assertion = !(hasHost && wifi != null)
-            || lib.all (netName: builtins.hasAttr netName networksCfg)
-            (wifi.networks or [ ]);
-          message =
-            "Host ${currentHost}: wifi.networks references undefined entries in inventory.networks.";
+          assertion =
+            !(hasHost && wifi != null)
+            || lib.all (netName: builtins.hasAttr netName networksCfg) (wifi.networks or [ ]);
+          message = "Host ${currentHost}: wifi.networks references undefined entries in inventory.networks.";
         }
       ];
     }

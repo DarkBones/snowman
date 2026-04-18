@@ -1,4 +1,13 @@
-{ lib, pkgs, pkgsUnstable, dotfilesSources, inv, currentHost, config, ... }:
+{
+  lib,
+  pkgs,
+  pkgsUnstable,
+  dotfilesSources,
+  inv,
+  currentHost,
+  config,
+  ...
+}:
 let
   hasHost = builtins.hasAttr currentHost inv.hosts;
 
@@ -15,13 +24,14 @@ let
     "dotfiles-mode.nix"
   ];
 
-  nixFiles = builtins.filter (name:
-    entries.${name} == "regular" && lib.hasSuffix ".nix" name
-    && !(lib.elem name excluded)) (builtins.attrNames entries);
+  nixFiles = builtins.filter (
+    name: entries.${name} == "regular" && lib.hasSuffix ".nix" name && !(lib.elem name excluded)
+  ) (builtins.attrNames entries);
 
   moduleFiles = map (name: here + "/${name}") nixFiles;
 
-in {
+in
+{
   imports = [
     ./engine-inputs.nix
     ./bootstrap-usb.nix
@@ -33,14 +43,20 @@ in {
     ./users
     ./compat.nix
     ./dotfiles-mode.nix
-  ] ++ moduleFiles;
-} // lib.optionalAttrs hasHost {
+  ]
+  ++ moduleFiles;
+}
+// lib.optionalAttrs hasHost {
   home-manager.extraSpecialArgs = {
     inherit pkgsUnstable dotfilesSources;
     snowmanDotfilesMode = config.snowman.dotfiles.mode;
     snowmanDotfilesIsDev = config.snowman.dotfiles.isDev;
   };
 
-  environment.systemPackages = (with pkgs; [ git age ])
+  environment.systemPackages =
+    (with pkgs; [
+      git
+      age
+    ])
     ++ [ pkgsUnstable.ssh-to-age ];
 }

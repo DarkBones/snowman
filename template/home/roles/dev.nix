@@ -4,9 +4,17 @@
 # (created from the Snowman template), not in the engine.
 # Feel free to edit or delete it.
 
-{ lib, pkgs, pkgsUnstable, config, ... }:
-let cfg = config.roles.dev;
-in {
+{
+  lib,
+  pkgs,
+  pkgsUnstable,
+  config,
+  ...
+}:
+let
+  cfg = config.roles.dev;
+in
+{
   options.roles.dev.enable = lib.mkEnableOption "Dev role";
 
   config = lib.mkIf cfg.enable {
