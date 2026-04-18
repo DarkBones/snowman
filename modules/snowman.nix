@@ -9,6 +9,8 @@ in
     (pkgs.writeShellScriptBin "snowman" ''
       set -euo pipefail
 
+      # Ensure nix and other tools are in PATH 
+      export PATH="$PATH:/run/current-system/sw/bin"
       MODE_FILE="/etc/snowman/dotfiles-mode"
       DEFAULT_FLAKE_FILE="/etc/snowman/flake"
 
