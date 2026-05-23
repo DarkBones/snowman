@@ -160,14 +160,23 @@ That ordering is intentional. You do not need all of it up front.
 
 ## SOPS + Age Keys
 
-Snowman secrets flow through `sops-nix`, so every operator or host that must decrypt secrets needs an Age public key listed in `.sops.yaml`; take your existing SSH public key, convert it to Age, and drop the resulting `age1…` string into the anchors and key groups in that file.
+Snowman secrets flow through `sops-nix`, so any operator or host that must decrypt secrets needs an Age recipient in `.sops.yaml` and access to the corresponding Age private key. Convert your SSH key pair once, keep the `age1…` recipient in `.sops.yaml`, and point `sops` at the generated secret key file when running commands.
 
 ```
 nix profile add nixpkgs#ssh-to-age
-nix shell nixpkgs#ssh-to-age --command ssh-to-age -i ~/.ssh/id_ed25519.pub
+nix run nixpkgs#ssh-to-age -- -i ~/.ssh/id_ed25519.pub
+nix run nixpkgs#ssh-to-age -- --private-key -i ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.age
+chmod 600 ~/.ssh/id_ed25519.age
+export SOPS_AGE_KEY_FILE="$HOME/.ssh/id_ed25519.age"
 ```
 
-Copy the output into `.sops.yaml` (e.g. replace `age1...<public key of a user>`) while keeping the anchors/groups so secrets inherit the right recipients, and repeat the conversion for every additional key you need.
+Paste the first command’s output into `.sops.yaml`, keep the generated `.age` file private, and repeat the conversion for any additional keys you need (USB tokens, hosts, etc.). Make sure `SOPS_AGE_KEY_FILE` is exported in every shell that runs `sops`—for example, add
+
+```
+export SOPS_AGE_KEY_FILE="$HOME/.ssh/id_ed25519.age"
+```
+
+to your shell’s startup file (`~/.bashrc`, `~/.zshrc`, `~/.config/fish/config.fish`, etc.) or a direnv hook so the identity is always available when editing secrets.
 
 ## Framework Contract
 
