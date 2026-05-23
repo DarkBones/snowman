@@ -158,6 +158,17 @@ Once the first machine works, then learn these in order:
 
 That ordering is intentional. You do not need all of it up front.
 
+## SOPS + Age Keys
+
+Snowman secrets flow through `sops-nix`, so every operator or host that must decrypt secrets needs an Age public key listed in `.sops.yaml`; take your existing SSH public key, convert it to Age, and drop the resulting `age1…` string into the anchors and key groups in that file.
+
+```
+nix profile add nixpkgs#ssh-to-age
+nix shell nixpkgs#ssh-to-age --command ssh-to-age -i ~/.ssh/id_ed25519.pub
+```
+
+Copy the output into `.sops.yaml` (e.g. replace `age1...<public key of a user>`) while keeping the anchors/groups so secrets inherit the right recipients, and repeat the conversion for every additional key you need.
+
 ## Framework Contract
 
 These are core behaviors of the engine:
