@@ -1,23 +1,47 @@
-{ pkgs, currentHost, ... }:
-let
-  defaultFlakePath = builtins.toString ../.;
-in
 {
-  environment.etc."snowman/flake".text = defaultFlakePath + "\n";
+  lib,
+  pkgs,
+  config,
+  currentHost,
+  ...
+}:
+{
+  options.snowman.flakePath = lib.mkOption {
+    type = lib.types.str;
+    default = "";
+    example = "/home/alice/my-snowman-config";
+    description = ''
+      Path to the body/config flake the `snowman` CLI should operate on.
+      Written to /etc/snowman/flake. If unset, the CLI requires the
+      SNOWMAN_FLAKE environment variable.
 
-  environment.systemPackages = [
-    (pkgs.writeShellScriptBin "snowman" ''
-      set -euo pipefail
+      Historical note: this used to silently default to the engine repo's
+      own store path, which is never a flake you can rebuild from.
+    '';
+  };
 
-      # Ensure nix and other tools are in PATH 
-      export PATH="$PATH:/run/current-system/sw/bin"
-      MODE_FILE="/etc/snowman/dotfiles-mode"
-      DEFAULT_FLAKE_FILE="/etc/snowman/flake"
+  config = {
+    environment.etc."snowman/flake" = lib.mkIf (config.snowman.flakePath != "") {
+      text = config.snowman.flakePath + "\n";
+    };
 
-      die() { echo "error: $*" >&2; exit 1; }
+    environment.systemPackages = [
+      (pkgs.writeShellScriptBin "snowman" ''
+        set -euo pipefail
 
-      DEFAULT_FLAKE="$(cat "$DEFAULT_FLAKE_FILE" 2>/dev/null || true)"
-      FLAKE_REF="''${SNOWMAN_FLAKE:-''${DEFAULT_FLAKE:-${defaultFlakePath}}}"
+        # Ensure nix and other tools are in PATH
+        export PATH="$PATH:/run/current-system/sw/bin"
+        MODE_FILE="/etc/snowman/dotfiles-mode"
+        DEFAULT_FLAKE_FILE="/etc/snowman/flake"
+
+        die() { echo "error: $*" >&2; exit 1; }
+
+        DEFAULT_FLAKE="$(cat "$DEFAULT_FLAKE_FILE" 2>/dev/null || true)"
+        FLAKE_REF="''${SNOWMAN_FLAKE:-''${DEFAULT_FLAKE:-}}"
+
+        if [ -z "$FLAKE_REF" ]; then
+          die "no flake configured. Set snowman.flakePath in your config, or export SNOWMAN_FLAKE=/path/to/your/snowman-config"
+        fi
 
       # Expand $HOME if present
       if [[ "$FLAKE_REF" == "\$HOME/"* ]]; then
@@ -46,6 +70,7 @@ in
         echo "  rollback      Rollback to previous generation"
         echo "  gc [n]        Garbage collect (keep last n generations, default 10, 0 = all)"
         echo "  status        Show current mode and flake path"
+        echo "  secrets ...   Run the body repo's secrets doctor (status/verify)"
         echo ""
         echo "Environment:"
         echo "  SNOWMAN_FLAKE  Override flake path"
@@ -168,6 +193,14 @@ in
         gc)
           do_gc "$@"
           ;;
+        secrets)
+          doctor="$FLAKE_REF/bin/snowman-secrets-doctor"
+          if [ -x "$doctor" ]; then
+            exec "$doctor" "$@"
+          else
+            die "no executable found at $doctor (secrets doctor is only available when the flake is a local checkout)"
+          fi
+          ;;
         dev)
           echo "➜ Enabling dotfiles DEV mode (SNOWMAN_DOTFILES_MODE=dev)"
           export SNOWMAN_DOTFILES_MODE=dev
@@ -183,5 +216,6 @@ in
           ;;
       esac
     '')
-  ];
+    ];
+  };
 }

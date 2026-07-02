@@ -17,26 +17,43 @@ else
       n: u: lib.elem n (hostCfg.users or [ ]) && (u.homeManaged or false)
     ) inv.users;
 
-    hostRoleFilter = hostCfg.availableRoles or null;
+    rolesLib = import ../../lib/roles.nix { inherit lib; };
+
+    rolesFor =
+      name:
+      rolesLib.resolve {
+        host = hostCfg;
+        user = hostUsers.${name};
+        userName = name;
+      };
+
+    # While both the legacy (users.<u>.roles + availableRoles) and the
+    # host-scoped (hosts.<h>.roles.<u> + users.<u>.roleConfig) schemas are
+    # present, they must agree. A mismatch means a half-finished migration.
+    roleMigrationAssertions = lib.mapAttrsToList (
+      name: u:
+      let
+        mismatch = rolesLib.dualMismatch {
+          host = hostCfg;
+          user = u;
+          userName = name;
+        };
+      in
+      {
+        assertion = mismatch == null;
+        message = "Snowman: role schema mismatch for user ${name} on host ${currentHost}: ${toString mismatch}";
+      }
+    ) hostUsers;
   in
   {
     config = {
+      snowman.resolvedRoles = lib.mapAttrs (name: _: builtins.attrNames (rolesFor name)) hostUsers;
+
       home-manager.users = lib.genAttrs (builtins.attrNames hostUsers) (
         name:
         let
           u = hostUsers.${name};
-
-          userRoles = u.roles or { };
-
-          # Only roles that are explicitly enabled
-          enabledUserRoles = lib.filterAttrs (_: roleCfg: roleCfg ? enable && roleCfg.enable) userRoles;
-
-          # If host.availableRoles is set, restrict to that list
-          finalRoles =
-            if hostRoleFilter == null then
-              enabledUserRoles
-            else
-              lib.filterAttrs (roleName: _: lib.elem roleName hostRoleFilter) enabledUserRoles;
+          finalRoles = rolesFor name;
         in
         {
           imports = [ ./default.nix ] ++ extraHomeImports ++ lib.optional (u ? envFile) u.envFile;
@@ -60,7 +77,8 @@ else
       );
 
       assertions =
-        (lib.mapAttrsToList (name: u: {
+        roleMigrationAssertions
+        ++ (lib.mapAttrsToList (name: u: {
           assertion = !(u ? envFile) || builtins.pathExists u.envFile;
           message = "User ${name}: envFile '${toString u.envFile}' does not exist.";
         }) hostUsers)

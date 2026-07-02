@@ -15,6 +15,10 @@
       nixosModules.default = ./modules/default.nix;
       homeModules.default = ./modules/home;
 
+      # Pure helpers, usable from body flakes (e.g. role resolution for
+      # standalone homeConfigurations, so the logic is not duplicated).
+      lib.roles = import ./lib/roles.nix { lib = nixpkgs.lib; };
+
       templates.default = {
         path = ./template;
         description = "Default Snowman user configuration";

@@ -21,7 +21,6 @@ in
 
     # 1. Disable the Base activation script so it doesn't fight us
     # (Force-disable to ensure linkMap always wins)
-    home.activation.dotfilesSync = lib.mkForce "";
     home.activation.dotfilesSync = lib.mkIf shouldReplaceScript (lib.mkForce "");
 
     # 2. Generate home.file entries

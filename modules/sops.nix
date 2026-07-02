@@ -63,7 +63,13 @@ let
 
   networksCfg = inv.networks or { };
 
-  # For each network <netName> with a passwordSecret, create a SOPS secret:
+  # Only provision Wi-Fi password secrets for networks this host actually
+  # uses (host.wifi.networks). Hosts without Wi-Fi should not need to be
+  # able to decrypt networks/secrets.yml at all.
+  hostWifiNetworks = (host.wifi or { }).networks or [ ];
+
+  # For each network <netName> with a passwordSecret that this host uses,
+  # create a SOPS secret:
   #   "wifi-<netName>-password"
   #
   # The data lives in networks/secrets.yml (networkSecretsPath), and
@@ -91,7 +97,7 @@ let
           }
         else
           acc
-      ) { } (builtins.attrNames networksCfg);
+      ) { } (lib.filter (n: builtins.hasAttr n networksCfg) hostWifiNetworks);
 
   hostSecrets = config.snowman.hostSecrets or { };
   allSecrets = hostSecrets // perUserSecrets // networkSecrets;
@@ -106,7 +112,8 @@ let
   }) inv.users;
 
   networkPasswordAssertions = lib.mapAttrsToList (netName: net: {
-    assertion = !(net ? passwordSecret) || networkSecretsPath != null;
+    assertion =
+      !(net ? passwordSecret) || !(lib.elem netName hostWifiNetworks) || networkSecretsPath != null;
     message = "Network ${netName}: passwordSecret is set but networkSecretsPath is null.";
   }) networksCfg;
 
@@ -130,6 +137,24 @@ in
       secrets = allSecrets;
     };
 
+    # Observability: record which secrets mode this generation was built in,
+    # so tooling (snowman-secrets-doctor) and humans can tell at a glance
+    # whether the host is expected to decrypt via the USB-imported age key
+    # or via its own SSH host key.
+    system.activationScripts."snowman-secrets-state" = ''
+      mkdir -p /var/lib/snowman
+      cat > /var/lib/snowman/secrets-state.json <<EOF
+      {
+        "host": "${currentHost}",
+        "isRotated": ${lib.boolToString isRotated},
+        "usbConfigured": ${lib.boolToString usbConfigured},
+        "mode": "${if usbMode then "usb-bootstrap" else "rotated-host-key"}",
+        "activatedAt": "$(${pkgs.coreutils}/bin/date -Is 2>/dev/null || echo unknown)"
+      }
+      EOF
+      chmod 0644 /var/lib/snowman/secrets-state.json
+    '';
+
     # Bootstrap: copy age key from USB -> /var/lib/sops-nix/age.key (once)
     system.activationScripts."00-snowman-import-sops-key" = lib.mkIf usbMode ''
       set -u
@@ -145,8 +170,11 @@ in
 
       if [ -e /run/current-system ]; then
 
-        log()  { echo "[snowman] $*"; }
-        warn() { echo "[snowman] WARNING: $*" >&2; }
+        STATE_DIR=/var/lib/snowman
+        mkdir -p "$STATE_DIR"
+        LOGF="$STATE_DIR/usb-import.log"
+        log()  { echo "[snowman] $*"; echo "$(${pkgs.coreutils}/bin/date -Is) $*" >> "$LOGF" 2>/dev/null || true; }
+        warn() { echo "[snowman] WARNING: $*" >&2; echo "$(${pkgs.coreutils}/bin/date -Is) WARNING: $*" >> "$LOGF" 2>/dev/null || true; }
 
         TARGET="/var/lib/sops-nix/age.key"
         USB_MOUNT="${usbCfg.path}"
