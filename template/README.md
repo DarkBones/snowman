@@ -23,6 +23,9 @@ Do these first:
 7. Run `./bin/snowman-import-hardware <host-name>`.
 8. Run `sudo nixos-rebuild switch --flake .#<host-name>`.
 
+After your first rebuild, `~/snowman-config/bin` is added to your PATH automatically,
+so scripts in your config repo's `bin/` can be run directly.
+
 That is enough for a first successful install.
 
 ## First Files To Know
@@ -76,6 +79,8 @@ cd <your repo dir>
 ```
 
 This copies the machine's generated hardware config into `hosts/<hostname>-hardware-configuration.nix`.
+
+Note: before first rebuild, use `./bin/...`; after rebuild, scripts in `bin/` are on PATH.
 
 ### 5. Rebuild
 
