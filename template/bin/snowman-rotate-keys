@@ -1,126 +1,193 @@
 #!/usr/bin/env nix-shell
-#!nix-shell -i python3 -p "python3.withPackages (ps: [ ps.ruamel-yaml ])" ssh-to-age sops openssh
+#!nix-shell -i python3 -p "python3.withPackages (ps: [ ps.ruamel-yaml ])" ssh-to-age sops openssh git
 
-import sys
-import subprocess
+"""Enroll (or retire) a host's SSH key as an age recipient, then re-encrypt.
+
+Usage:
+  ./bin/snowman-rotate-keys <host-name-in-inventory> <ssh-target>
+  ./bin/snowman-rotate-keys --retire <host-name-in-inventory>
+
+Enroll:  fetches /etc/ssh/ssh_host_ed25519_key.pub from <ssh-target>,
+converts it to an age key, adds it to .sops.yaml under `.keys` with the
+anchor &<host-name> (the Snowman engine detects "rotated" hosts by that
+anchor), appends it to `.host_keys` and `.all_keys`, and re-encrypts every
+sops file with `sops updatekeys`.
+
+Retire:  removes the host's key from .sops.yaml and all key groups (use
+before rebuilding a machine from scratch — the old host key died with the
+disk), and re-encrypts.
+
+IMPORTANT: <host-name-in-inventory> must be the attribute name used in
+inventory.nix (e.g. "dorkbones"), because the engine matches the anchor
+against `currentHost`.
+
+Always run ./bin/snowman-secrets-doctor verify afterwards, then commit.
+"""
+
 import os
+import subprocess
+import sys
+
 from ruamel.yaml import YAML
 from ruamel.yaml.scalarstring import PlainScalarString
 
-# --- Configuration ---
 SOPS_FILE = ".sops.yaml"
+KEYS_KEY = ".keys"
+GROUPS_FOR_HOSTS = [".host_keys", ".all_keys"]
 
-def run_command(cmd, input_text=None):
-    """Runs a shell command and returns stdout."""
+
+def die(msg):
+    print(f"ERROR: {msg}", file=sys.stderr)
+    sys.exit(1)
+
+
+def run(cmd, input_text=None):
     try:
         result = subprocess.run(
-            cmd, 
-            input=input_text, 
-            capture_output=True, 
-            text=True, 
-            check=True, 
-            shell=True
+            cmd, input=input_text, capture_output=True, text=True, check=True
         )
         return result.stdout.strip()
     except subprocess.CalledProcessError as e:
-        print(f"❌ Error running command: {cmd}")
-        print(f"   Stderr: {e.stderr}")
-        sys.exit(1)
+        die(f"command failed: {' '.join(cmd)}\n{e.stderr}")
 
-def get_host_key(target_host):
-    """Fetches the Ed25519 public key via SSH."""
-    print(f"🔍 Fetching SSH key from {target_host}...")
-    # We use cat to ensure we get the specific file we need
-    return run_command(f"ssh {target_host} 'cat /etc/ssh/ssh_host_ed25519_key.pub'")
 
-def convert_to_age(ssh_key):
-    """Converts SSH public key to Age format using ssh-to-age."""
-    print("🔐 Converting to Age format...")
-    return run_command("ssh-to-age", input_text=ssh_key)
+def preserve_anchors(node):
+    """ruamel drops anchors that nothing references on dump. The engine's
+    rotated-host detection greps for `&<host>` anchors, and the group
+    anchors are part of the file's documented structure — keep them all."""
+    anchor = getattr(node, "anchor", None)
+    if anchor is not None and anchor.value is not None:
+        anchor.always_dump = True
+    if hasattr(node, "values") and hasattr(node, "items"):
+        for v in node.values():
+            preserve_anchors(v)
+    elif isinstance(node, list):
+        for v in node:
+            preserve_anchors(v)
 
-def update_sops_yaml(host_name, age_key):
-    """Safely updates .sops.yaml using ruamel.yaml to preserve comments/anchors."""
+
+def load_sops_yaml(yaml):
+    if not os.path.exists(SOPS_FILE):
+        die(f"{SOPS_FILE} not found — run this from the repo root.")
+    with open(SOPS_FILE) as f:
+        data = yaml.load(f)
+    if KEYS_KEY not in data or not hasattr(data[KEYS_KEY], "items"):
+        die(f"unexpected {SOPS_FILE} structure: no '{KEYS_KEY}' mapping.")
+    preserve_anchors(data)
+    return data
+
+
+def dump_sops_yaml(yaml, data):
+    with open(SOPS_FILE, "w") as f:
+        yaml.dump(data, f)
+
+
+def secret_files():
+    out = run(["git", "ls-files"])
+    return [f for f in out.splitlines() if f.endswith((".yml", ".yaml")) and "secrets" in f]
+
+
+def updatekeys():
+    files = secret_files()
+    if not files:
+        die("no sops secret files found via git ls-files.")
+    print("🔄 Re-encrypting with `sops updatekeys`...")
+    for f in files:
+        print(f"   {f}")
+        run(["sops", "updatekeys", "--yes", f])
+
+
+def enroll(host, target):
+    print(f"🔍 Fetching SSH host key from {target}...")
+    ssh_key = run(["ssh", target, "cat /etc/ssh/ssh_host_ed25519_key.pub"])
+
+    print("🔐 Converting to age format...")
+    age_key = run(["ssh-to-age"], input_text=ssh_key)
+    print(f"   {host}: {age_key}")
+
     yaml = YAML()
     yaml.preserve_quotes = True
-    # Match the indentation style of your template
+    yaml.width = 4096
     yaml.indent(mapping=2, sequence=4, offset=2)
-    
-    if not os.path.exists(SOPS_FILE):
-        print(f"❌ {SOPS_FILE} not found in current directory.")
-        sys.exit(1)
+    data = load_sops_yaml(yaml)
+    keys = data[KEYS_KEY]
 
-    with open(SOPS_FILE, 'r') as f:
-        data = yaml.load(f)
+    if host in keys:
+        if str(keys[host]) == age_key:
+            print(f"⚠️  {host} already enrolled with this key. Nothing to add.")
+            updatekeys()
+            return
+        print(f"♻️  {host} exists with a DIFFERENT key — replacing (host was reinstalled?).")
+        retire_from_groups(data, keys[host])
+        del keys[host]
 
-    if 'keys' not in data or not isinstance(data['keys'], list):
-        print("❌ Invalid .sops.yaml structure (missing 'keys' list).")
-        sys.exit(1)
+    scalar = PlainScalarString(age_key)
+    scalar.yaml_set_anchor(host, always_dump=True)
+    keys[host] = scalar
 
-    # Helper to check if key exists recursively
-    def has_key(obj, key_str):
-        if isinstance(obj, list):
-            return any(has_key(x, key_str) for x in obj)
-        if isinstance(obj, str):
-            return key_str in obj
-        return False
+    for group in GROUPS_FOR_HOSTS:
+        if group not in data:
+            die(f"expected group '{group}' in {SOPS_FILE}.")
+        data[group].append(scalar)
 
-    if has_key(data['keys'], age_key):
-        print(f"⚠️  Key for {host_name} already exists in {SOPS_FILE}. Skipping add.")
-        return
+    dump_sops_yaml(yaml, data)
+    print(f"📝 Added &{host} to {SOPS_FILE} ({', '.join(GROUPS_FOR_HOSTS)}).")
 
-    print(f"📝 Adding {host_name} to {SOPS_FILE}...")
-    
-    # Create a string object with an anchor (&hostname)
-    new_entry = PlainScalarString(age_key)
-    new_entry.yaml_anchor = host_name
+    updatekeys()
 
-    # We assume the template structure: keys[0] is users, keys[1] is hosts.
-    # We append to the second group.
-    try:
-        target_list = data['keys'][1]
-        target_list.append(new_entry)
-    except IndexError:
-        print("⚠️  Could not find the second key group (hosts). Appending to end of keys list.")
-        data['keys'].append([new_entry])
+    print("\n🎉 Enrollment complete!")
+    print("---------------------------------------------------")
+    print(f"The engine will now treat '{host}' as ROTATED (anchor &{host} present):")
+    print("  - USB bootstrap import is disabled for it")
+    print("  - it decrypts with its own SSH host key")
+    print("---------------------------------------------------")
+    print("👉 Next: ./bin/snowman-secrets-doctor verify && git commit && git push")
 
-    with open(SOPS_FILE, 'w') as f:
-        yaml.dump(data, f)
-    
-    print("✅ .sops.yaml updated.")
+
+def retire_from_groups(data, key_obj):
+    key_str = str(key_obj)
+    for name, value in list(data.items()):
+        if isinstance(value, list):
+            kept = [item for item in value if str(item) != key_str]
+            if len(kept) != len(value):
+                del value[:]
+                value.extend(kept)
+
+
+def retire(host):
+    yaml = YAML()
+    yaml.preserve_quotes = True
+    yaml.width = 4096
+    yaml.indent(mapping=2, sequence=4, offset=2)
+    data = load_sops_yaml(yaml)
+    keys = data[KEYS_KEY]
+
+    if host not in keys:
+        die(f"'{host}' not found under {KEYS_KEY} in {SOPS_FILE}.")
+
+    key_obj = keys[host]
+    retire_from_groups(data, key_obj)
+    del keys[host]
+    dump_sops_yaml(yaml, data)
+    print(f"🗑️  Removed &{host} ({key_obj}) from {SOPS_FILE} and all key groups.")
+
+    updatekeys()
+
+    print("\n✅ Retirement complete.")
+    print(f"'{host}' is back in USB-bootstrap mode (no &{host} anchor).")
+    print("👉 Next: ./bin/snowman-secrets-doctor verify && git commit && git push")
+
 
 def main():
-    if len(sys.argv) != 3:
-        print(f"Usage: {sys.argv[0]} <host-name-in-inventory> <ssh-target>")
-        print("Example: ./bin/snowman-rotate-keys my-laptop root@192.168.1.50")
+    args = sys.argv[1:]
+    if len(args) == 2 and args[0] == "--retire":
+        retire(args[1])
+    elif len(args) == 2 and not args[0].startswith("-"):
+        enroll(args[0], args[1])
+    else:
+        print(__doc__.strip(), file=sys.stderr)
         sys.exit(1)
 
-    host_name = sys.argv[1]
-    target = sys.argv[2]
-
-    # 1. Get Key
-    ssh_key = get_host_key(target)
-    
-    # 2. Convert
-    age_key = convert_to_age(ssh_key)
-    print(f"   Key: {age_key}")
-
-    # 3. Edit YAML
-    update_sops_yaml(host_name, age_key)
-
-    # 4. Re-encrypt
-    print("🔄 Running sops updatekeys...")
-    # Finds all files ending in secrets.yml or secrets.yaml
-    cmd = "find . -name '*secrets.y*ml' | xargs -I {} sops updatekeys {}"
-    subprocess.run(cmd, shell=True, check=True)
-    
-    print("\n🎉 Rotation Complete!")
-    print("---------------------------------------------------")
-    print(f"Snowman has detected the anchor &{host_name} in .sops.yaml.")
-    print("When you deploy next, the system will automatically:")
-    print("  1. Disable the USB bootstrap service.")
-    print("  2. Switch to using the internal SSH host key.")
-    print("---------------------------------------------------")
-    print("👉 Action: git commit && git push")
 
 if __name__ == "__main__":
     main()
