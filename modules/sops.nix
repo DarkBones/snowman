@@ -128,11 +128,6 @@ in
       validateSopsFiles = true;
       age = {
         keyFile = "/var/lib/sops-nix/age.key";
-
-        # If we have rotated (isRotated = true), usbMode becomes false.
-        # generateKey becomes true.
-        # Sops-nix will then find the SSH host key automatically.
-        generateKey = !usbMode;
       };
       secrets = allSecrets;
     };
