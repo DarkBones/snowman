@@ -126,8 +126,8 @@ Before first install, verify:
 
 - adding or changing hosts
 - adding or changing users
-- enabling roles for a user
-- restricting roles with `availableRoles`
+- binding roles to users per host (`hosts.<host>.roles.<user>`)
+- per-role settings under `users.<user>.roleConfig`
 - adding local NixOS modules
 - wiring local services and reverse proxy layout
 - choosing dotfiles source wiring
@@ -211,8 +211,8 @@ Usually this repo.
 Usually this repo first.
 
 - add it under `home/roles/`
-- enable it in `inventory.nix`
-- restrict it with `availableRoles` if needed
+- bind it in `inventory.nix` under `hosts.<host>.roles.<user>`
+- add settings under `users.<user>.roleConfig.<role>` if it needs any
 
 Only move a role to Snowman base if it is genuinely generic.
 

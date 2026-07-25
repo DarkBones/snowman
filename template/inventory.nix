@@ -17,7 +17,7 @@
   ## - sops-managed secrets
   ## - declarative Wi-Fi
   ## - USB bootstrap keys
-  ## - multi-host role filtering
+  ## - per-host role bindings across many machines
   ############################################################
 
   # Used as system.stateVersion + HM stateVersion
@@ -106,16 +106,20 @@
       # };
 
       ############################################################
-      ## Optional per-host role filter
+      ## Role bindings: which roles apply to which user ON THIS HOST
       ##
-      ## If omitted, all roles with users.<name>.roles.<role>.enable
-      ## set to true are applied on this host.
+      ## Each entry names a role module from home/roles/. Per-role
+      ## configuration (if any) lives on the user, under
+      ## users.<name>.roleConfig.<role>.
       ##
-      ## If set, only roles whose *names* appear in this list are
-      ## applied. This lets you reuse one user across many hosts
-      ## but restrict e.g. gaming roles to a single machine.
+      ## Binding roles per host means one user can exist on many
+      ## machines with different feature sets — e.g. bind "gaming"
+      ## only on the desktop — without any exclusion lists.
       ############################################################
-      # availableRoles = [ "ssh" "dev" "secrets" ];
+      roles.bas = [
+        "dev"
+        "secrets"
+      ];
 
       ############################################################
       ## Optional: USB bootstrap Age key ("Snowman Key")
@@ -138,7 +142,7 @@
     #   system = "x86_64-linux";
     #   users  = [ "alice" ];
     #
-    #   # availableRoles = [ "dev" "secrets" "ssh" "my_company" ];
+    #   roles.alice = [ "dev" "secrets" "my_company" ];
     # };
   };
 
@@ -205,32 +209,34 @@
       ########################################################
       # envFile = ./users/env/bas.nix;
 
-      roles = {
-        # Example dev tool role (see home/roles/dev.nix).
-        # You can keep this on or off; it is safe either way.
-        dev.enable = true;
-
-        # Defaults to `true` if omitted
-        # ssh.enable = true;
-
-        ####################################################
-        ## "secrets" role: user environment
-        ##
-        ## This is separate from `users.bas.secrets` above:
-        ##
-        ## - `users.bas.secrets` → what secrets exist, how
-        ##   they are stored (sops-nix, password hash, files).
-        ##
-        ## - roles.secrets.enable → whether this user should
-        ##   have the sops CLI & helpers in their $PATH.
-        ####################################################
-        secrets.enable = true;
-
+      ########################################################
+      ## Role configuration (payload only!)
+      ##
+      ## WHICH roles this user gets on WHICH machine is bound
+      ## per host, under hosts.<host>.roles.<user> above.
+      ## This section only holds per-role settings for roles
+      ## that need them. Roles without settings (like "dev")
+      ## need no entry here — binding them on a host is enough.
+      ##
+      ## Notes on the roles bound above:
+      ##
+      ## - "dev": example dev tool role (see home/roles/dev.nix).
+      ##
+      ## - "secrets": separate from `users.bas.secrets` above:
+      ##   `users.bas.secrets` → what secrets exist and how they
+      ##   are stored (sops-nix, password hash, files);
+      ##   the "secrets" role → whether this user gets the sops
+      ##   CLI & helpers in their $PATH.
+      ##
+      ## - "ssh" is on by default everywhere (no binding needed).
+      ########################################################
+      roleConfig = {
         ########################################################
         ## Dotfiles ("head") role
         ##
         ## This is useful, but it is not required for your first
-        ## successful install.
+        ## successful install. To use it, add "dotfiles" to
+        ## hosts.<host>.roles.bas and configure it here.
         ##
         ## Recommended learning order:
         ##   1. get one machine working
@@ -241,7 +247,6 @@
         ##   - Git fallback via clone/pull on activation
         ########################################################
         # dotfiles = {
-        #   enable = true;
 
         ####################################################
         ## PINNED MODE (reproducible; uses flake input)
@@ -303,18 +308,14 @@
       };
     };
 
-    # Example of a second user:
+    # Example of a second user. Note there is no role list here: which
+    # roles alice gets is bound per host (hosts.<host>.roles.alice);
+    # only per-role *settings* would go in `roleConfig`.
     # alice = {
     #   uid     = 1001;
     #   groups = [ "wheel" ];
     #   shell  = "bash";
     #   sshPubKeyFiles = [ ./users/keys/alice.pub ];
-    #
-    #   roles = {
-    #     dev.enable = true;
-    #     ssh.enable = true;
-    #     # gaming.enable = true;
-    #   };
     # };
   };
 }

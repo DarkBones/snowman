@@ -187,7 +187,7 @@ These are core behaviors of the engine:
 - every host must define a hostname and at least one user
 - every user must have at least one login method
 - Home Manager only applies to users with `homeManaged = true`
-- `hosts.<host>.availableRoles` filters enabled user roles on that host
+- `hosts.<host>.roles.<user>` binds roles per host (legacy `availableRoles` + `users.<user>.roles.<r>.enable` still supported)
 - dotfiles wiring preserves prod/dev semantics
 - secrets wiring uses sops-nix and should stay schema-driven
 
