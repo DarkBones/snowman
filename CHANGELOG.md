@@ -18,6 +18,17 @@ before updating their `snowman` flake input.
   `SNOWMAN_FLAKE`.
 
 ### Added
+- **linkMap source verification**: a `roles.dotfiles.linkMap` entry whose source
+  path does not exist used to produce a symlink pointing at nothing, with no
+  warning at build or activation time. Pinned prod mode now checks every source
+  at eval and fails the build with the offending paths listed. Dev and git mode
+  check at activation instead (`home.activation.dotfilesLinkMapVerify`), because
+  pure eval cannot see paths under `$HOME`. The check is a separate activation
+  entry, so body repos that replace `home.activation.dotfilesSync` still get it.
+  **Upgrade impact:** a body repo carrying stale linkMap entries will fail to
+  build or activate until they are fixed or removed. Note that gitignored and
+  untracked paths can never satisfy the prod-mode check, because a `github:`
+  flake input only carries tracked files.
 - **`snowman.flakePath` option** (string): path to the body flake the
   `snowman` CLI operates on. Written to `/etc/snowman/flake`.
 - **`snowman secrets ...` subcommand**: delegates to
